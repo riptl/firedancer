@@ -438,11 +438,12 @@ after_frag( fd_net_ctx_t *      ctx,
 
   /* Neighbor resolve */
 
+  uint neigh_ip = fd_uint_if( !!next_hop->ip4_gw, next_hop->ip4_gw, dst_ip );
   fd_neigh4_hmap_query_t neigh_query[1];
-  int neigh_res = fd_neigh4_hmap_query_try( ctx->neigh4, &next_hop->ip4_gw, NULL, neigh_query, 0 );
+  int neigh_res = fd_neigh4_hmap_query_try( ctx->neigh4, &neigh_ip, NULL, neigh_query, 0 );
   if( FD_UNLIKELY( neigh_res!=FD_MAP_SUCCESS ) ) {
     /* Neighbor not found */
-    fd_netlink_neigh4_solicit( ctx->neigh4_solicit, next_hop->ip4_gw, fd_frag_meta_ts_comp( fd_tickcount() ) );
+    fd_netlink_neigh4_solicit( ctx->neigh4_solicit, neigh_ip, fd_frag_meta_ts_comp( fd_tickcount() ) );
     ctx->metrics.tx_drops_neigh++;
     return;
   }

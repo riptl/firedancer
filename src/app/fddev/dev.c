@@ -5,6 +5,8 @@
 
 #include "../fdctl/configure/configure.h"
 #include "../fdctl/run/run.h"
+#include "../fdctl/run/topos/topos.h"
+#include "../../disco/topo/fd_topob.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -188,6 +190,10 @@ dev_cmd_fn( args_t *         args,
     configure_cmd_fn( &configure_args, config );
   }
 
+  fd_topo_t * topo = { fd_topob_new( &config->topo, config->name ) };
+  fd_topos_affinity_t affinity[1]; fd_topos_affinity( affinity, config->development.pktgen.affinity );
+  fd_topos_create_validator( topo, config, affinity );
+  fd_topos_seal( topo, affinity );
   update_config_for_dev( config );
   if( FD_UNLIKELY( args->dev.no_agave ) ) config->development.no_agave = 1;
 
