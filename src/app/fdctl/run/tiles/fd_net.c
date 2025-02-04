@@ -114,6 +114,10 @@ typedef struct {
 
   long        tx_flush_interval_ticks;
   long        next_tx_flush;
+  
+  /* Flush every N packets */
+  ulong flush_pending;
+  ulong flush_wmark;
 
   fd_fib4_t const * fib_local;
   fd_fib4_t const * fib_main;
@@ -395,12 +399,15 @@ after_frag( fd_net_ctx_t *      ctx,
             fd_stem_context_t * stem ) {
   (void)in_idx; (void)seq; (void)tsorig; (void)stem;
 
+  int  flush_level   = ctx->flush_pending >= ctx->flush_wmark;
   long now           = fd_tickcount();
   long next_tx_flush = ctx->next_tx_flush;
   long deadline      = now + ctx->tx_flush_interval_ticks;
-  int  flush         = now > next_tx_flush;
+  int  flush_timeout = now > next_tx_flush;
+  int  flush         = flush_level || flush_timeout;
   fd_long_store_if( next_tx_flush==LONG_MAX, &ctx->next_tx_flush, deadline ); /* first packet of batch */
   fd_long_store_if( flush,                   &ctx->next_tx_flush, LONG_MAX ); /* last packet of batch */
+  ctx->flush_pending = flush ? 0UL : ctx->flush_pending+1UL;
 
   fd_aio_pkt_info_t aio_buf = { .buf = ctx->frame, .buf_sz = (ushort)sz };
   uint dst_ip = fd_disco_netmux_sig_dst_ip( sig );
@@ -705,6 +712,9 @@ unprivileged_init( fd_topo_t *      topo,
       fd_topo_obj_laddr( topo, tile->net.neigh4_ele_obj_id ) ) ) ) {
     FD_LOG_ERR(( "fd_neigh4_hmap_join failed" ));
   }
+
+  ctx->flush_wmark   = (ulong)( (double)tile->net.xdp_aio_depth * 0.7 );
+  ctx->flush_pending = 0UL;
 
   ulong scratch_top = FD_SCRATCH_ALLOC_FINI( l, 1UL );
   if( FD_UNLIKELY( scratch_top > (ulong)scratch + scratch_footprint( tile ) ) )
