@@ -457,7 +457,7 @@ after_frag( fd_net_ctx_t *      ctx,
     return;
   }
 
-  int aio_err = ctx->tx->send_func( ctx->xsk_aio[ 0 ], &aio_buf, 1, &sent_cnt, 1 );
+  int aio_err = ctx->tx->send_func( ctx->xsk_aio[ 0 ], &aio_buf, 1, &sent_cnt, flush );
   ctx->metrics.tx_drops_xsk_main += aio_err!=FD_AIO_SUCCESS;
 }
 
