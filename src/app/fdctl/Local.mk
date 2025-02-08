@@ -18,6 +18,7 @@ $(OBJDIR)/obj/app/fdctl/version.d: src/app/fdctl/version.h
 
 # fdctl core
 $(call add-objs,main1 config config_parse caps utility keys ready mem spy help version,fd_fdctl)
+$(call add-objs,netconf,fd_fdctl)
 $(call add-objs,run/run run/run1 run/run_agave,fd_fdctl)
 $(call add-objs,monitor/monitor monitor/helper,fd_fdctl)
 $(call make-fuzz-test,fuzz_fdctl_config,fuzz_fdctl_config,fd_fdctl fd_ballet fd_util)
@@ -75,10 +76,10 @@ ifdef FD_HAS_NO_AGAVE
 ifdef FD_HAS_SECP256K1
 $(call make-lib,external_functions)
 $(call add-objs,external_functions,external_functions)
-$(call make-bin-rust,fdctl,main,fd_fdctl fd_choreo fd_disco fd_flamenco fd_funk fd_quic fd_tls fd_ip fd_reedsol fd_ballet fd_waltz fd_tango fd_util external_functions, $(SECP256K1_LIBS))
+$(call make-bin-rust,fdctl,main,fd_fdctl fd_choreo fd_disco fd_flamenco fd_funk fd_quic fd_tls fd_reedsol fd_ballet fd_waltz fd_tango fd_util external_functions, $(SECP256K1_LIBS))
 endif
 else
-$(call make-bin-rust,fdctl,main,fd_fdctl fd_disco fd_flamenco fd_funk fd_quic fd_tls fd_ip fd_reedsol fd_ballet fd_waltz fd_tango fd_util agave_validator firedancer_plugin_bundle)
+$(call make-bin-rust,fdctl,main,fd_fdctl fd_disco fd_flamenco fd_funk fd_quic fd_tls fd_reedsol fd_ballet fd_waltz fd_tango fd_util agave_validator firedancer_plugin_bundle)
 endif
 $(call make-unit-test,test_tiles_verify,run/tiles/test_verify,fd_ballet fd_tango fd_util)
 $(call run-unit-test,test_tiles_verify)

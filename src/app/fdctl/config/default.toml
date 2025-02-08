@@ -865,25 +865,44 @@ dynamic_port_range = "8900-9000"
         # larger value is probably better if supported by the hardware,
         # as we will drop less packets when bursting in high bandwidth
         # scenarios.
-        #
-        # TODO: This probably shouldn't be configurable, we should just
-        # use the maximum available to the hardware?
-        xdp_rx_queue_size = 4096
-        xdp_tx_queue_size = 4096
+        xdp_rx_queue_size = 32768
+        xdp_tx_queue_size = 32768
 
-        # When writing multiple queue entries to XDP, we may wish to
-        # batch them together if it's expensive to do them one at a
-        # time.  This might be the case for example if the writes go
-        # directly to the network device.  A large batch size may not be
-        # ideal either, as it adds latency and jitter to packet
-        # handling.
-        xdp_aio_depth = 256
+        # When the oldest packet in a batch has been queued for more than
+        # the specified duration, flushes the batch out to to the network
+        # device.  Smaller values improve latency, larger values may
+        # improve throughput.
+        flush_timeout_micros = 20
 
         # The maximum number of packets in-flight between a net tile and
         # downstream consumers, after which additional packets begin to
         # replace older ones, which will be dropped.  TODO: ... Should
         # this really be configurable?
         send_buffer_size = 16384
+
+    # The netlink tile forwards Linux network configuration to net tiles.
+    # This config section contains advanced options that typically do not
+    # need to be changed.
+    # For further info, see https://docs.firedancer.io/guide/netlink.html
+    [tiles.netlink]
+        # The maximum number of routes per route table.
+        #
+        # The netlink tile imports two route tables from Linux, namely
+        # `local` and `main`.  You can view them by running
+        # `ip route show table main`.  Decreasing this option can result
+        # in connectivity issues.  Increasing this option can drastically
+        # decrease performance.
+        #
+        # For virtually all cloud and bare-metal server providers, the
+        # number of routes per table does not exceed 16.
+        max_routes = 128
+
+        # The maximum number of Ethernet neighbors.
+        #
+        # This should be roughly as large as the size your Ethernet subnet.
+        # E.g. if your IP address is 198.51.100.3/24, then your subnet has
+        # up to 256 neighbors (2^(32-24)).
+        max_neighbors = 4096
 
     # QUIC tiles are responsible for serving network traffic, including
     # parsing and responding to packets and managing connection timeouts

@@ -52,14 +52,30 @@ metric introduced.
 </common>
 
 <tile name="net">
-    <counter name="ReceivedPackets" summary="Number of IP packets received." />
-    <counter name="ReceivedBytes" summary="Total bytes received (including IP, UDP headers)." />
-    <counter name="SentPackets" summary="Number of IP packets sent." />
-    <counter name="SentBytes" summary="Total bytes sent (including IP, UDP headers)." />
-    <counter name="XdpRxDroppedRingFull" summary="Number of packets dropped because the RX completion queue was empty. This is only reported for net tile 0, since the measurement is across all RX queues." />
-    <counter name="XdpRxDroppedOther" summary="Number of packets dropped for other reasons. This is only reported for net tile 0, since the measurement is across all RX queues." />
-    <counter name="TxDropped" summary="Number of packets dropped because the TX submission queue was empty. This is reported for all net tiles." />
-    <counter name="XskSendErrors" summary="Number of times calling send(2) on the XSK indicated an error other than EAGAIN." />
+    <counter name="RxPktCnt" summary="Packet receive count." />
+    <counter name="RxBytesTotal" summary="Total number of bytes received (including Ethernet header)." />
+    <counter name="RxUnderszCnt" summary="Number of incoming packets dropped due to being too small." />
+    <counter name="RxFillBlockedCnt" summary="Number of incoming packets dropped due to fill ring being full." />
+    <counter name="RxBackpressureCnt" summary="Number of incoming packets dropped due to backpressure." />
+
+    <counter name="TxSubmitCnt" summary="Number of packet transmit jobs submitted." />
+    <counter name="TxCompleteCnt" summary="Number of packet transmit jobs marked as completed by the kernel." />
+    <counter name="TxBytesTotal" summary="Total number of bytes transmitted (including Ethernet header)." />
+    <counter name="TxOverrunCnt" summary="Number of packet transmit jobs aborted due to overrun by upstream tile." />
+    <counter name="TxRouteFailCnt" summary="Number of packet transmit jobs dropped due to route failure." />
+
+    <counter name="XskTxWakeupCnt" summary="Number of XSK sendto syscalls dispatched." />
+    <counter name="XskRxWakeupCnt" summary="Number of XSK recvmsg syscalls dispatched." />
+    <counter name="ArpRequestCnt" summary="Number of ARP requests submitted." />
+    <counter name="ArpRequestFailCnt" summary="Number of ARP requests failed to submit." />
+
+    <!-- Kernel xdp_statistics struct -->
+    <counter name="XdpRxDroppedOther" summary="xdp_statistics_v0.rx_dropped: Dropped for other reasons" />
+    <counter name="XdpRxInvalidDescs" summary="xdp_statistics_v0.rx_invalid_descs: Dropped due to invalid descriptor" />
+    <counter name="XdpTxInvalidDescs" summary="xdp_statistics_v0.tx_invalid_descs: Dropped due to invalid descriptor" />
+    <counter name="XdpRxRingFull" summary="xdp_statistics_v1.rx_ring_full: Dropped due to rx ring being full" />
+    <counter name="XdpRxFillRingEmptyDescs" summary="xdp_statistics_v1.rx_fill_ring_empty_descs: Failed to retrieve item from fill ring" />
+    <counter name="XdpTxRingEmptyDescs" summary="xdp_statistics_v1.tx_ring_empty_descs: Failed to retrieve item from tx ring" />
 </tile>
 
 <enum name="TpuRecvType">
@@ -598,6 +614,30 @@ metric introduced.
     <counter name="RecvPongEvent" enum="RecvPongEvent" clickhouse_exclude="true" summary="Number of Pong messages processed with non-standard outcomes" />
 
     <gauge   name="GossipPeerCounts" enum="GossipPeerState" clickhouse_exclude="true" summary="Number of gossip peers tracked" />
+</tile>
+
+<enum name="NetlinkMsg">
+    <int value="0" name="Link" label="Link" />
+    <int value="1" name="Neigh" label="Neighbor Table Entry" />
+    <int value="2" name="Ipv4Route" label="IPv4 Route Table Entry" />
+    <!-- <int value="3" name="Ipv4Rule" label="IPv4 Routing Rule" /> -->
+</enum>
+
+<enum name="RouteTable">
+    <int value="0" name="Local" label="Local" />
+    <int value="1" name="Main" label="Main" />
+    <!-- <int value="2" name="Other" label="Other" /> -->
+</enum>
+
+<tile name="netlnk">
+    <counter name="DropEvents" summary="Number of netlink drop events caught" />
+    <counter name="LinkFullSyncs" summary="Number of full link table syncs done" />
+    <counter name="RouteFullSyncs" summary="Number of full route table syncs done" />
+    <counter name="Updates" enum="NetlinkMsg" summary="Number of netlink live updates processed" />
+    <gauge name="InterfaceCount" summary="Number of network interfaces" />
+    <gauge name="RouteCount" enum="RouteTable" summary="Number of IPv4 routes" />
+    <counter name="NeighborSolicitsSent" summary="Number of neighbor solicit requests sent to kernel" />
+    <counter name="NeighborSolicitsFails" summary="Number of neighbor solicit requests that failed to send" />
 </tile>
 
 </metrics>

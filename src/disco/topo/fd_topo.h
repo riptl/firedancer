@@ -129,8 +129,8 @@ typedef struct {
       char   interface[ 16 ];
       ulong  xdp_rx_queue_size;
       ulong  xdp_tx_queue_size;
-      ulong  xdp_aio_depth;
-      char   xdp_mode[4];
+      long   tx_flush_timeout_ns;
+      char   xdp_mode[8];
       int    zero_copy;
       uint   src_ip_addr;
       uchar  src_mac_addr[6];
@@ -141,7 +141,22 @@ typedef struct {
       ushort gossip_listen_port;
       ushort repair_intake_listen_port;
       ushort repair_serve_listen_port;
+
+      ulong netdev_dbl_buf_obj_id; /* dbl_buf containing netdev_tbl */
+      ulong fib4_main_obj_id;      /* fib4 containing main route table */
+      ulong fib4_local_obj_id;     /* fib4 containing local route table */
+      ulong neigh4_obj_id;         /* neigh4 hash map header */
+      ulong neigh4_ele_obj_id;     /* neigh4 hash map slots */
     } net;
+
+    struct {
+      ulong netdev_dbl_buf_obj_id; /* dbl_buf containing netdev_tbl */
+      ulong fib4_main_obj_id;      /* fib4 containing main route table */
+      ulong fib4_local_obj_id;     /* fib4 containing local route table */
+      uint  neigh_if_idx;          /* neigh4 interface index */
+      ulong neigh4_obj_id;         /* neigh4 hash map header */
+      ulong neigh4_ele_obj_id;     /* neigh4 hash map slots */
+    } netlink;
 
     struct {
       uint   out_depth;
