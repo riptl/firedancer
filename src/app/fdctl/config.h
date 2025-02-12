@@ -69,9 +69,9 @@ struct fdctl_config {
     ulong account_indexes_cnt;
     char  account_indexes[ 4 ][ 32 ];
     ulong account_index_include_keys_cnt;
-    char  account_index_include_keys[ 32 ][ 32 ];
+    char  account_index_include_keys[ 32 ][ FD_BASE58_ENCODED_32_SZ ];
     ulong account_index_exclude_keys_cnt;
-    char  account_index_exclude_keys[ 32 ][ 32 ];
+    char  account_index_exclude_keys[ 32 ][ FD_BASE58_ENCODED_32_SZ ];
     char  accounts_index_path[ PATH_MAX ];
     char  accounts_hash_cache_path[ PATH_MAX ];
     int   require_tower;
@@ -323,6 +323,7 @@ struct fdctl_config {
       char  slots_pending[PATH_MAX];
       char  shred_cap_archive[ PATH_MAX ];
       char  shred_cap_replay[ PATH_MAX ];
+      ulong shred_cap_end_slot;
     } store_int;
 
     struct {

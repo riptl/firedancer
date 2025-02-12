@@ -43,6 +43,7 @@ struct fd_netlink_tile_ctx {
   /* Neighbor table */
   fd_neigh4_hmap_t neigh4[1];
   uint             neigh4_ifidx;
+  long             idle_cnt;
 
   struct {
     ulong link_full_syncs;

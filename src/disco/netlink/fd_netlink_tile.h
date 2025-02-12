@@ -39,31 +39,20 @@ fd_netlink_topo_join( fd_topo_t *      topo,
                       fd_topo_tile_t * netlink_tile,
                       fd_topo_tile_t * join_tile );
 
-/* fd_netlink_neigh4_solicit{,_sse} requests a neighbor solicitation (i.e.
-   ARP request) for an IPv4 address.  Safe to call at a high rate.  The
+/* fd_netlink_neigh4_solicit requests a neighbor solicitation (i.e. ARP
+   request) for an IPv4 address.  Safe to call at a high rate.  The
    netlink tile will deduplicate requests.  ip4_addr is big endian. */
 
 static inline void
 fd_netlink_neigh4_solicit( fd_netlink_neigh4_solicit_link_t * link,
                            uint                               ip4_addr,
+                           uint                               if_idx,
                            ulong                              tspub_comp ) {
   ulong seq = link->seq;
-  ulong sig = ip4_addr;
+  ulong sig = (ulong)ip4_addr | ( (ulong)if_idx<<32 );
   fd_mcache_publish( link->mcache, link->depth, seq, sig, 0UL, 0UL, 0UL, 0UL, tspub_comp );
   link->seq = fd_seq_inc( seq, 1UL );
 }
-
-#if FD_HAS_SSE
-static inline void
-fd_netlink_neigh4_solicit_sse( fd_netlink_neigh4_solicit_link_t * link,
-                               uint                               ip4_addr,
-                               ulong                              tspub_comp ) {
-  ulong seq = link->seq;
-  ulong sig = ip4_addr;
-  fd_mcache_publish_sse( link->mcache, link->depth, seq, sig, 0UL, 0UL, 0UL, 0UL, tspub_comp );
-  link->seq = fd_seq_inc( seq, 1UL );
-}
-#endif /* FD_HAS_SSE */
 
 FD_PROTOTYPES_END
 

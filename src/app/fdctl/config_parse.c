@@ -162,7 +162,7 @@ fdctl_pod_find_leftover( uchar * pod ) {
   c -= 1;
   fd_cstr_fini( c );
 
-  FD_LOG_WARNING(( "Unrecognized key `%s`", path ));
+  FD_LOG_WARNING(( "Config file contains unrecognized key `%s`", path ));
   return 0;
 }
 
@@ -281,7 +281,6 @@ fdctl_pod_to_cfg( config_t * config,
   CFG_POP      ( uint,   layout.verify_tile_count                         );
   CFG_POP      ( uint,   layout.bank_tile_count                           );
   CFG_POP      ( uint,   layout.shred_tile_count                          );
-  CFG_POP      ( uint,   layout.exec_tile_count                           );
 
   CFG_POP      ( cstr,   hugetlbfs.mount_path                             );
   CFG_POP      ( cstr,   hugetlbfs.max_page_size                          );
@@ -366,6 +365,8 @@ fdctl_pod_to_cfg( config_t * config,
 
   /* Firedancer-only configuration */
 
+  CFG_POP      ( uint,   layout.exec_tile_count                           );
+
   CFG_POP      ( ulong,  blockstore.shred_max                             );
   CFG_POP      ( ulong,  blockstore.block_max                             );
   CFG_POP      ( ulong,  blockstore.idx_max                               );
@@ -405,6 +406,7 @@ fdctl_pod_to_cfg( config_t * config,
   CFG_POP      ( cstr,   tiles.store_int.slots_pending                    );
   CFG_POP      ( cstr,   tiles.store_int.shred_cap_archive                );
   CFG_POP      ( cstr,   tiles.store_int.shred_cap_replay                 );
+  CFG_POP      ( ulong,  tiles.store_int.shred_cap_end_slot               );
 
   CFG_POP      ( ulong,  tiles.batch.full_interval                        );
   CFG_POP      ( ulong,  tiles.batch.incremental_interval                 );
@@ -463,7 +465,6 @@ fdctl_cfg_validate( config_t * cfg ) {
   CFG_HAS_NON_ZERO ( layout.verify_tile_count );
   CFG_HAS_NON_ZERO ( layout.bank_tile_count );
   CFG_HAS_NON_ZERO ( layout.shred_tile_count );
-  CFG_HAS_NON_ZERO ( layout.exec_tile_count );
 
   CFG_HAS_NON_EMPTY( hugetlbfs.mount_path );
   CFG_HAS_NON_EMPTY( hugetlbfs.max_page_size );

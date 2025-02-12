@@ -2,7 +2,6 @@
 #include "../topo/fd_topo.h"
 #include "../topo/fd_topob.h"
 #include "../topo/fd_pod_format.h"
-#include "generated/netlink_seccomp.h"
 #include "../metrics/fd_metrics.h"
 #include "../../waltz/ip/fd_fib4_netlink.h"
 #include "../../waltz/mib/fd_netdev_netlink.h"
@@ -16,6 +15,8 @@
 #include <sys/random.h> /* getrandom */
 #include <sys/time.h> /* struct timeval */
 #include <linux/rtnetlink.h> /* RTM_{...} */
+
+#include "generated/netlink_seccomp.h"
 
 /* Hardcoded limits */
 #define NETDEV_MAX      (256U)
@@ -81,11 +82,6 @@ fd_netlink_topo_join( fd_topo_t *      topo,
   fd_topob_tile_uses( topo, join_tile, &topo->objs[ netlink_tile->netlink.fib4_local_obj_id ], FD_SHMEM_JOIN_MODE_READ_ONLY );
 }
 
-/* Timing details:
-
-   Housekeeping is done every 97ms.
-   Socket receives block up to 43ms. */
-
 /* Begin tile methods */
 
 FD_FN_CONST static inline ulong
@@ -140,7 +136,7 @@ privileged_init( fd_topo_t *      topo,
   }
 
   fd_netlink_tile_ctx_t * ctx = fd_topo_obj_laddr( topo, tile->tile_obj_id );
-  /* FIXME zero memory? */
+  fd_memset( ctx, 0, sizeof(fd_netlink_tile_ctx_t) );
   ctx->magic = FD_NETLINK_TILE_CTX_MAGIC;
   ctx->neigh4_ifidx = tile->netlink.neigh_if_idx;
 
@@ -163,7 +159,8 @@ privileged_init( fd_topo_t *      topo,
     FD_LOG_ERR(( "bind(sock,RT_NETLINK,RTMGRP_{LINK,NEIGH,IPV4_ROUTE}) failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
 
-  struct timeval tv = { .tv_usec = 43000, }; /* 43ms */
+  /* Set duration of blocking reads in before_credit */
+  struct timeval tv = { .tv_usec = 3753, }; /* 3.75ms */
   if( FD_UNLIKELY( 0!=setsockopt( ctx->nl_monitor->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(struct timeval) ) ) ) {
     FD_LOG_ERR(( "setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO) failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
@@ -225,7 +222,52 @@ metrics_write( fd_netlink_tile_ctx_t * ctx ) {
   FD_MCNT_SET(       NETLNK, NEIGHBOR_SOLICITS_FAILS, ctx->metrics.neigh_solicits_fails );
 }
 
-static inline void
+/* netlink_monitor_read calls recvfrom to process a link, route, or
+   neighbor update.  Returns 1 if a message was read, 0 otherwise. */
+
+static int
+netlink_monitor_read( fd_netlink_tile_ctx_t * ctx,
+                      int                     flags ) {
+
+  uchar msg[ 16384 ];
+  long msg_sz = recvfrom( ctx->nl_monitor->fd, msg, sizeof(msg), flags, NULL, NULL );
+  if( msg_sz<=0L ) {
+    if( FD_LIKELY( errno==EAGAIN || errno==EINTR ) ) return 0;
+    if( errno==ENOBUFS ) {
+      fd_netlink_enobufs_cnt++;
+      return 0;
+    }
+    FD_LOG_ERR(( "recvfrom(nl_monitor) failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+
+  struct nlmsghdr * nlh = fd_type_pun( msg );
+  FD_DTRACE_PROBE_4( netlink_update, nlh->nlmsg_seq, nlh->nlmsg_type, nlh->nlmsg_len, nlh->nlmsg_flags );
+  switch( nlh->nlmsg_type ) {
+  case RTM_NEWLINK:
+  case RTM_DELLINK:
+    ctx->action |= FD_NET_TILE_ACTION_LINK_UPDATE;
+    ctx->metrics.update_cnt[ FD_METRICS_ENUM_NETLINK_MSG_V_LINK_IDX ]++;
+    break;
+  case RTM_NEWROUTE:
+  case RTM_DELROUTE:
+    ctx->action |= FD_NET_TILE_ACTION_ROUTE4_UPDATE;
+    ctx->metrics.update_cnt[ FD_METRICS_ENUM_NETLINK_MSG_V_IPV4_ROUTE_IDX ]++;
+    break;
+  case RTM_NEWNEIGH:
+  case RTM_DELNEIGH: {
+    fd_neigh4_netlink_ingest_message( ctx->neigh4, nlh, ctx->neigh4_ifidx );
+    ctx->metrics.update_cnt[ FD_METRICS_ENUM_NETLINK_MSG_V_NEIGH_IDX ]++;
+    break;
+  }
+  default:
+    FD_LOG_INFO(( "Received unexpected netlink message type %u", nlh->nlmsg_type ));
+    break;
+  }
+
+  return 1;
+}
+
+static void
 during_housekeeping( fd_netlink_tile_ctx_t * ctx ) {
   long now = fd_tickcount();
   if( ctx->action & FD_NET_TILE_ACTION_LINK_UPDATE ) {
@@ -257,41 +299,22 @@ during_housekeeping( fd_netlink_tile_ctx_t * ctx ) {
   }
 }
 
-static inline void
+static void
 before_credit( fd_netlink_tile_ctx_t * ctx,
-               fd_stem_context_t *     stem,
+               fd_stem_context_t *     stem FD_PARAM_UNUSED,
                int *                   charge_busy ) {
-  (void)stem;
 
-  uchar msg[ 16384 ];
-  long msg_sz = recvfrom( ctx->nl_monitor->fd, msg, sizeof(msg), 0, NULL, NULL );
-  if( msg_sz<=0L ) return;
-
-  /* FIXME the reported busy% should not include any wait time */
-  *charge_busy = 1;
-
-  struct nlmsghdr * nlh = fd_type_pun( msg );
-  FD_DTRACE_PROBE_4( netlink_update, nlh->nlmsg_seq, nlh->nlmsg_type, nlh->nlmsg_len, nlh->nlmsg_flags );
-  switch( nlh->nlmsg_type ) {
-  case RTM_NEWLINK:
-  case RTM_DELLINK:
-    ctx->action |= FD_NET_TILE_ACTION_LINK_UPDATE;
-    ctx->metrics.update_cnt[ FD_METRICS_ENUM_NETLINK_MSG_V_LINK_IDX ]++;
-    break;
-  case RTM_NEWROUTE:
-  case RTM_DELROUTE:
-    ctx->action |= FD_NET_TILE_ACTION_ROUTE4_UPDATE;
-    ctx->metrics.update_cnt[ FD_METRICS_ENUM_NETLINK_MSG_V_IPV4_ROUTE_IDX ]++;
-    break;
-  case RTM_NEWNEIGH:
-  case RTM_DELNEIGH: {
-    fd_neigh4_netlink_ingest_message( ctx->neigh4, nlh, ctx->neigh4_ifidx );
-    ctx->metrics.update_cnt[ FD_METRICS_ENUM_NETLINK_MSG_V_NEIGH_IDX ]++;
-    break;
+  for(;;) {
+    /* Clear socket buffer */
+    if( !netlink_monitor_read( ctx, MSG_DONTWAIT ) ) break;
+    *charge_busy = 1;
   }
-  default:
-    FD_LOG_INFO(( "Received unexpected netlink message type %u", nlh->nlmsg_type ));
-    break;
+
+  ctx->idle_cnt++;
+  if( FD_UNLIKELY( ctx->idle_cnt >= 128L ) ) {
+    /* Blocking read (yield to scheduler) */
+    *charge_busy = 0;
+    netlink_monitor_read( ctx, 0 );
   }
 
 }
@@ -308,6 +331,8 @@ after_frag( fd_netlink_tile_ctx_t * ctx,
             fd_stem_context_t *     stem ) {
   (void)in_idx; (void)seq; (void)tsorig; (void)stem;
 
+  ctx->idle_cnt = -1L;
+
   /* Parse request (fully contained in sig field) */
 
   if( FD_UNLIKELY( sz!=0UL ) ) {
@@ -320,6 +345,7 @@ after_frag( fd_netlink_tile_ctx_t * ctx,
   uint   ip4_addr = (uint)sig;
   if( FD_UNLIKELY( if_idx!=ctx->neigh4_ifidx ) ) {
     ctx->metrics.neigh_solicits_fails++;
+    FD_LOG_ERR(( "received neighbor solicit request for invalid interface index %u", if_idx ));
     return;
   }
 
@@ -327,7 +353,10 @@ after_frag( fd_netlink_tile_ctx_t * ctx,
 
   fd_neigh4_hmap_query_t query[1];
   int spec_res = fd_neigh4_hmap_query_try( ctx->neigh4, &ip4_addr, NULL, query, 0 );
-  if( spec_res==FD_MAP_SUCCESS ) return;
+  if( spec_res==FD_MAP_SUCCESS ) {
+    ctx->metrics.neigh_solicits_fails++;
+    return;
+  }
 
   /* Insert placeholder (take above branch next time) */
 
@@ -355,7 +384,7 @@ after_frag( fd_netlink_tile_ctx_t * ctx,
 }
 
 #define STEM_BURST (1UL)
-#define STEM_LAZY ((ulong)97e6) /* 97ms */
+#define STEM_LAZY ((ulong)43e6) /* 43ms */
 
 #define STEM_CALLBACK_CONTEXT_TYPE  fd_netlink_tile_ctx_t
 #define STEM_CALLBACK_CONTEXT_ALIGN alignof(fd_netlink_tile_ctx_t)

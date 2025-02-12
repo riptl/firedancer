@@ -230,9 +230,10 @@ publish_txn( fd_resolv_ctx_t *          ctx,
              fd_stem_context_t *        stem,
              fd_stashed_txn_m_t const * stashed ) {
   fd_txn_m_t *     txnm = (fd_txn_m_t *)fd_chunk_to_laddr( ctx->out_mem, ctx->out_chunk );
+  fd_memcpy( txnm, stashed->_, fd_txn_m_realized_footprint( (fd_txn_m_t *)stashed->_, 1, 0 ) );
+
   fd_txn_t const * txnt = fd_txn_m_txn_t( txnm );
 
-  fd_memcpy( txnm, stashed->_, fd_txn_m_realized_footprint( txnm, 1, 0 ) );
   txnm->reference_slot = ctx->flushing_slot;
 
   if( FD_UNLIKELY( txnt->addr_table_adtl_cnt ) ) {
@@ -334,7 +335,7 @@ after_frag( fd_resolv_ctx_t *   ctx,
         blockhash->slot = frag->slot;
 
         blockhash_t * hash = (blockhash_t *)frag->hash;
-        ctx->flush_pool_idx  = map_chain_idx_query( ctx->map_chain, &hash, ULONG_MAX, ctx->pool );
+        ctx->flush_pool_idx  = map_chain_idx_query_const( ctx->map_chain, &hash, ULONG_MAX, ctx->pool );
         ctx->flushing_slot   = frag->slot;
 
         ctx->completed_slot = frag->slot;
@@ -419,7 +420,7 @@ after_frag( fd_resolv_ctx_t *   ctx,
        pool_idx_acquire won't return POOL_IDX_NULL. */
     FD_COMPILER_FORGET( stash_txn );
     fd_memcpy( stash_txn->_, txnm, fd_txn_m_realized_footprint( txnm, 1, 0 ) );
-    stash_txn->blockhash = (blockhash_t *)fd_txn_m_payload( (fd_txn_m_t *)(stash_txn->_) ) + txnt->recent_blockhash_off;
+    stash_txn->blockhash = (blockhash_t *)(fd_txn_m_payload( (fd_txn_m_t *)(stash_txn->_) ) + txnt->recent_blockhash_off);
     ctx->metrics.stash[ FD_METRICS_ENUM_RESOLVE_STASH_OPERATION_V_INSERTED_IDX ]++;
 
     map_chain_ele_insert( ctx->map_chain, stash_txn, ctx->pool );

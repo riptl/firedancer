@@ -134,9 +134,9 @@ fd_topo_initialize( config_t * config ) {
     ulong net_tile_id = fd_topo_find_tile( topo, "net", i ); FD_TEST( net_tile_id!=ULONG_MAX );
     fd_netlink_topo_join( topo, netlink_tile, &topo->tiles[ net_tile_id ] );
   }
-  fd_topob_tile_in( topo, "netlnk", 0UL, "metric_in", "net_netlink", 0UL, FD_TOPOB_UNRELIABLE, FD_TOPOB_POLLED );
 
   /*                                      topo, tile_name, tile_kind_id, fseq_wksp,   link_name,      link_kind_id, reliable,            polled */
+  FOR(net_tile_cnt)    fd_topob_tile_in(  topo, "netlnk",  0UL,          "metric_in", "net_netlink",  i,            FD_TOPOB_UNRELIABLE, FD_TOPOB_POLLED );
   FOR(net_tile_cnt)    fd_topob_tile_out( topo, "net",     i,                         "net_netlink",  i                                                  );
   FOR(net_tile_cnt) for( ulong j=0UL; j<quic_tile_cnt; j++ )
                        fd_topob_tile_in(  topo, "net",     i,            "metric_in", "quic_net",     j,            FD_TOPOB_UNRELIABLE, FD_TOPOB_POLLED ); /* No reliable consumers of networking fragments, may be dropped or overrun */
@@ -261,7 +261,7 @@ fd_topo_initialize( config_t * config ) {
     /**/                 fd_topob_tile( topo, "bundle",  "bundle",  "metric_in", tile_to_cpu[ topo->tile_cnt ], 0 );
 
     /**/                 fd_topob_tile_out( topo, "bundle", 0UL, "bundle_verif", 0UL );
-    /**/                 fd_topob_tile_in(  topo, "verify", 0UL,           "metric_in", "bundle_verif",   0UL,        FD_TOPOB_RELIABLE,   FD_TOPOB_POLLED   );
+    FOR(verify_tile_cnt) fd_topob_tile_in(  topo, "verify", i,             "metric_in", "bundle_verif",   0UL,        FD_TOPOB_RELIABLE,   FD_TOPOB_POLLED   );
 
     /**/                 fd_topob_tile_in(  topo, "sign",   0UL,           "metric_in", "bundle_sign",    0UL,        FD_TOPOB_UNRELIABLE, FD_TOPOB_POLLED   );
     /**/                 fd_topob_tile_out( topo, "bundle", 0UL,                        "bundle_sign",    0UL                                                );
@@ -270,7 +270,9 @@ fd_topo_initialize( config_t * config ) {
 
     if( plugins_enabled ) {
       fd_topob_wksp( topo, "bundle_plugi" );
-      fd_topob_link( topo, "bundle_plugi", "bundle_plugi", 128UL, sizeof(fd_plugin_msg_block_engine_update_t), 1UL );
+      /* bundle_plugi must be kind of deep, to prevent exhausting shared
+         flow control credits when publishing many packets at once. */
+      fd_topob_link( topo, "bundle_plugi", "bundle_plugi", 65536UL, sizeof(fd_plugin_msg_block_engine_update_t), 1UL );
       fd_topob_tile_in( topo, "plugin", 0UL, "metric_in", "bundle_plugi", 0UL, FD_TOPOB_RELIABLE, FD_TOPOB_POLLED );
       fd_topob_tile_out( topo, "bundle", 0UL, "bundle_plugi", 0UL );
     }

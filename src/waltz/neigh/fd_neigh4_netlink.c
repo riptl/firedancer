@@ -136,6 +136,7 @@ fd_neigh4_netlink_ingest_message( fd_neigh4_hmap_t *      map,
 
     fd_neigh4_entry_t * ele = fd_neigh4_hmap_query_ele( query );
 
+    ele->state    = FD_NEIGH4_STATE_ACTIVE;
     ele->ip4_addr = ip4_dst;
     memcpy( ele->mac_addr, mac_addr.u6, 6 );
 

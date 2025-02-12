@@ -61,13 +61,11 @@ metric introduced.
     <counter name="TxSubmitCnt" summary="Number of packet transmit jobs submitted." />
     <counter name="TxCompleteCnt" summary="Number of packet transmit jobs marked as completed by the kernel." />
     <counter name="TxBytesTotal" summary="Total number of bytes transmitted (including Ethernet header)." />
-    <counter name="TxOverrunCnt" summary="Number of packet transmit jobs aborted due to overrun by upstream tile." />
     <counter name="TxRouteFailCnt" summary="Number of packet transmit jobs dropped due to route failure." />
+    <counter name="TxNeighborFailCnt" summary="Number of packet transmit jobs dropped due to unresolved neighbor." />
 
     <counter name="XskTxWakeupCnt" summary="Number of XSK sendto syscalls dispatched." />
     <counter name="XskRxWakeupCnt" summary="Number of XSK recvmsg syscalls dispatched." />
-    <counter name="ArpRequestCnt" summary="Number of ARP requests submitted." />
-    <counter name="ArpRequestFailCnt" summary="Number of ARP requests failed to submit." />
 
     <!-- Kernel xdp_statistics struct -->
     <counter name="XdpRxDroppedOther" summary="xdp_statistics_v0.rx_dropped: Dropped for other reasons" />
@@ -76,6 +74,8 @@ metric introduced.
     <counter name="XdpRxRingFull" summary="xdp_statistics_v1.rx_ring_full: Dropped due to rx ring being full" />
     <counter name="XdpRxFillRingEmptyDescs" summary="xdp_statistics_v1.rx_fill_ring_empty_descs: Failed to retrieve item from fill ring" />
     <counter name="XdpTxRingEmptyDescs" summary="xdp_statistics_v1.tx_ring_empty_descs: Failed to retrieve item from tx ring" />
+
+    <counter name="TxFullFailCnt" summary="Number of packet transmit jobs dropped due to XDP TX ring full or missing completions." />
 </tile>
 
 <enum name="TpuRecvType">
@@ -285,6 +285,14 @@ metric introduced.
     <int value="15" name="TxnBankLeaderMicroblock" label="Pack scheduled a non-empty microblock" />
 </enum>
 
+<enum name="AvailTxnType">
+  <int value="0" name="All" label="All transactions in any treap" />
+  <int value="1" name="Regular" label="Non-votes in the main treap" />
+  <int value="2" name="Votes" label="Simple votes" />
+  <int value="3" name="Conflicting" label="Non-votes that write to a hotly-contended account" />
+  <int value="4" name="Bundles" label="Transactions that are part of a bundle" />
+</enum>
+
 <tile name="pack">
     <histogram name="ScheduleMicroblockDurationSeconds" min="0.00000001" max="0.1" converter="seconds">
         <summary>Duration of scheduling one microblock</summary>
@@ -313,10 +321,8 @@ metric introduced.
     <counter name="TransactionInsertedFromExtra" summary="Transactions pulled from the extra transaction storage and inserted into pack's primary storage" />
     <counter name="TransactionExpired" summary="Transactions deleted from pack because their TTL expired" />
 
-    <gauge name="AvailableTransactions" summary="The total number of pending transactions in pack's pool that are available to be scheduled" />
-    <gauge name="AvailableVoteTransactions" summary="The number of pending simple vote transactions in pack's pool that are available to be scheduled" />
-    <gauge name="PendingTransactionsHeapSize" summary="The maximum number of pending transactions that pack can consider.  This value is fixed at Firedancer startup but is a useful reference for AvailableTransactions and AvailableVoteTransactions." />
-    <gauge name="ConflictingTransactions" summary="The number of available transactions that are temporarily not being considered due to account lock conflicts with many higher paying transactions" />
+    <gauge name="AvailableTransactions" enum="AvailTxnType" summary="The total number of pending transactions in pack's pool that are available to be scheduled" />
+    <gauge name="PendingTransactionsHeapSize" summary="The maximum number of pending transactions that pack can consider.  This value is fixed at Firedancer startup but is a useful reference for AvailableTransactions." />
 
     <gauge name="SmallestPendingTransaction" summary="A lower bound on the smallest non-vote transaction (in cost units) that is immediately available for scheduling" />
 
