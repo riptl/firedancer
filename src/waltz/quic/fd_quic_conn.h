@@ -239,7 +239,7 @@ struct fd_quic_conn {
   /* round trip time related members */
   fd_quic_conn_rtt_t rtt[1];
 
-  ulong token_len;
+  uint  token_len;
   uchar token[ FD_QUIC_RETRY_MAX_TOKEN_SZ ];
 
   fd_quic_conn_stream_rx_t srx[1];
