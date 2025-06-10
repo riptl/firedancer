@@ -44,7 +44,7 @@ pktgen_topo( config_t * config ) {
   }
   if( FD_LIKELY( !is_auto_affinity ) ) {
     if( FD_UNLIKELY( affinity_tile_cnt!=4UL ) )
-      FD_LOG_ERR(( "Invalid [development.pktgen.affinity]: must include exactly three CPUs" ));
+      FD_LOG_ERR(( "Invalid [development.pktgen.affinity]: must include exactly 4 CPUs" ));
   }
 
   /* Reset topology from scratch */
@@ -68,7 +68,6 @@ pktgen_topo( config_t * config ) {
 
   /* Create dummy RX link */
   fd_topos_net_rx_link( topo, "net_quic", 0UL, config->net.ingress_buffer_size );
-  fd_topob_tile_out( topo, "net", 0UL, "net_quic", 0UL );
   fd_topob_tile_in( topo, "pktgen", 0UL, "metric_in", "net_quic", 0UL, FD_TOPOB_UNRELIABLE, FD_TOPOB_POLLED );
 
   fd_topos_net_tile_finish( topo );

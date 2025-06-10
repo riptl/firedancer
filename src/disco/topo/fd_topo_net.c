@@ -61,12 +61,15 @@ fd_topo_install_xdp( fd_topo_t * topo,
 
   int dup_fd = FD_TOPO_XDP_INHERIT_FD_MIN;
   for( ulong i=0UL; i<(fds.device_cnt); i++ ) {
+    uint if_idx = fds.device[ i ].if_idx;
+    char xdp_mode[8]; memcpy( xdp_mode, net0_tile->xdp.xdp_mode, sizeof(xdp_mode) );
+    if( if_idx==1 ) strcpy( xdp_mode, "skb" );
     fd_xdp_fds_t xdp_fds = fd_xdp_install(
         fds.device[ i ].if_idx,
         bind_addr,
         sizeof(udp_port_candidates)/sizeof(udp_port_candidates[0]),
         udp_port_candidates,
-        net0_tile->xdp.xdp_mode
+        xdp_mode
     );
 
     if( FD_UNLIKELY( -1==dup2( xdp_fds.xsk_map_fd, dup_fd++   ) ) ) FD_LOG_ERR(( "dup2() failed (%i-%s)",  errno, fd_io_strerror( errno ) ));

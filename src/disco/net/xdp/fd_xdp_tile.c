@@ -1067,6 +1067,7 @@ privileged_init( fd_topo_t *      topo,
       .frame_sz  = umem_frame_sz,
       .umem_sz   = umem_sz
     };
+    if( tile->xdp.queues[ queue_id ].if_idx==1 ) params.bind_flags = XDP_COPY;
 
     int const xsk_map_fd = tile->xdp.queues[ queue_id ].xsk_map_fd;
 
