@@ -79,6 +79,7 @@ metric introduced.
     <counter name="XdpRxRingFull" summary="xdp_statistics_v1.rx_ring_full: Dropped due to rx ring being full" />
     <counter name="XdpRxFillRingEmptyDescs" summary="xdp_statistics_v1.rx_fill_ring_empty_descs: Failed to retrieve item from fill ring" />
     <counter name="XdpTxRingEmptyDescs" summary="xdp_statistics_v1.tx_ring_empty_descs: Failed to retrieve item from tx ring" />
+    <counter name="RegimeSyscall" summary="Cumulative ticks spent waiting for syscalls" />
 </tile>
 
 <enum name="SockErr">

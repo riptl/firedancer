@@ -246,6 +246,7 @@ typedef struct {
 
     ulong xsk_tx_wakeup_cnt;
     ulong xsk_rx_wakeup_cnt;
+    ulong regime_syscall_ticks;
   } metrics;
 } fd_net_ctx_t;
 
@@ -283,6 +284,7 @@ metrics_write( fd_net_ctx_t * ctx ) {
 
   FD_MCNT_SET( NET, XSK_TX_WAKEUP_CNT,    ctx->metrics.xsk_tx_wakeup_cnt    );
   FD_MCNT_SET( NET, XSK_RX_WAKEUP_CNT,    ctx->metrics.xsk_rx_wakeup_cnt    );
+  FD_MCNT_SET( NET, REGIME_SYSCALL,       ctx->metrics.regime_syscall_ticks );
 }
 
 struct xdp_statistics_v0 {
@@ -307,8 +309,11 @@ poll_xdp_statistics( fd_net_ctx_t * ctx ) {
   for( ulong j=0UL; j<xsk_cnt; j++ ) {
     struct xdp_statistics_v1 sub_stats;
     uint optlen = (uint)sizeof(struct xdp_statistics_v1);
+    long dt = -fd_tickcount();
     if( FD_UNLIKELY( -1==getsockopt( ctx->xsk[ j ].xsk_fd, SOL_XDP, XDP_STATISTICS, &sub_stats, &optlen ) ) )
       FD_LOG_ERR(( "getsockopt(SOL_XDP, XDP_STATISTICS) failed: %s", strerror( errno ) ));
+    dt += fd_tickcount();
+    ctx->metrics.regime_syscall_ticks += (ulong)dt;
     if( FD_UNLIKELY( optlen!=sizeof(struct xdp_statistics_v0) &&
                      optlen!=sizeof(struct xdp_statistics_v1) ) ) {
       FD_LOG_ERR(( "getsockopt(SOL_XDP, XDP_STATISTICS) returned unexpected size %u", optlen ));
@@ -366,6 +371,7 @@ net_rx_wakeup( fd_net_ctx_t * ctx,
                int *          charge_busy ) {
   if( !fd_xsk_rx_need_wakeup( xsk ) ) return;
   *charge_busy = 1;
+  long dt = -fd_tickcount();
   struct msghdr _ignored[ 1 ] = { 0 };
   if( FD_UNLIKELY( -1==recvmsg( xsk->xsk_fd, _ignored, MSG_DONTWAIT ) ) ) {
     if( FD_UNLIKELY( net_is_fatal_xdp_error( errno ) ) ) {
@@ -379,7 +385,9 @@ net_rx_wakeup( fd_net_ctx_t * ctx,
       }
     }
   }
+  dt += fd_tickcount();
   ctx->metrics.xsk_rx_wakeup_cnt++;
+  ctx->metrics.regime_syscall_ticks += (ulong)dt;
 }
 
 /* net_tx_wakeup triggers xsk_sendmsg to run in the kernel.  Needs to be
@@ -392,6 +400,7 @@ net_tx_wakeup( fd_net_ctx_t * ctx,
   if( !fd_xsk_tx_need_wakeup( xsk ) ) return;
   if( FD_VOLATILE_CONST( *xsk->ring_tx.prod )==FD_VOLATILE_CONST( *xsk->ring_tx.cons ) ) return;
   *charge_busy = 1;
+  long dt = -fd_tickcount();
   if( FD_UNLIKELY( -1==sendto( xsk->xsk_fd, NULL, 0, MSG_DONTWAIT, NULL, 0 ) ) ) {
     if( FD_UNLIKELY( net_is_fatal_xdp_error( errno ) ) ) {
       FD_LOG_ERR(( "xsk sendto failed xsk_fd=%d (%i-%s)", xsk->xsk_fd, errno, fd_io_strerror( errno ) ));
@@ -404,7 +413,9 @@ net_tx_wakeup( fd_net_ctx_t * ctx,
       }
     }
   }
+  dt += fd_tickcount();
   ctx->metrics.xsk_tx_wakeup_cnt++;
+  ctx->metrics.regime_syscall_ticks += (ulong)dt;
 }
 
 /* net_tx_periodic_wakeup does a timer based xsk_sendmsg wakeup. */

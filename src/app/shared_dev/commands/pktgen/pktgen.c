@@ -105,6 +105,7 @@ render_status( ulong volatile const * net_metrics ) {
   static long   ts_last       = -1L;
   static ulong  cum_idle_last = 0UL;
   static ulong  cum_tick_last = 0UL;
+  static ulong  sys_tick_last = 0UL;
   static ulong  rx_ok_last    = 0UL;
   static ulong  rx_byte_last  = 0UL;
   static ulong  rx_drop_last  = 0UL;
@@ -112,6 +113,7 @@ render_status( ulong volatile const * net_metrics ) {
   static ulong  tx_byte_last  = 0UL;
 
   static double busy_r       = 0.0;
+  static double syscall_r    = 0.0;
   static double rx_ok_pps    = 0.0;
   static double rx_bps       = 0.0;
   static double rx_drop_pps  = 0.0;
@@ -131,6 +133,7 @@ render_status( ulong volatile const * net_metrics ) {
     /* */ cum_tick_now += net_metrics[ MIDX( COUNTER, TILE, REGIME_DURATION_NANOS_PROCESSING_PREFRAG        ) ];
     /* */ cum_tick_now += net_metrics[ MIDX( COUNTER, TILE, REGIME_DURATION_NANOS_BACKPRESSURE_PREFRAG      ) ];
     /* */ cum_tick_now += net_metrics[ MIDX( COUNTER, TILE, REGIME_DURATION_NANOS_PROCESSING_POSTFRAG       ) ];
+    ulong sys_tick_now  = net_metrics[ MIDX( COUNTER, NET, REGIME_SYSCALL       ) ];
     ulong rx_ok_now     = net_metrics[ MIDX( COUNTER, NET, RX_PKT_CNT           ) ];
     ulong rx_byte_now   = net_metrics[ MIDX( COUNTER, NET, RX_BYTES_TOTAL       ) ];
     ulong rx_drop_now   = net_metrics[ MIDX( COUNTER, NET, RX_FILL_BLOCKED_CNT  ) ];
@@ -143,6 +146,7 @@ render_status( ulong volatile const * net_metrics ) {
 
     ulong cum_idle_delta = cum_idle_now-cum_idle_last;
     ulong cum_tick_delta = cum_tick_now-cum_tick_last;
+    ulong sys_delta      = sys_tick_now-sys_tick_last;
     ulong rx_ok_delta    = rx_ok_now   -rx_ok_last;
     ulong rx_byte_delta  = rx_byte_now -rx_byte_last;
     ulong rx_drop_delta  = rx_drop_now -rx_drop_last;
@@ -150,6 +154,7 @@ render_status( ulong volatile const * net_metrics ) {
     ulong tx_byte_delta  = tx_byte_now -tx_byte_last;
 
     busy_r               = 1.0 - ( (double)cum_idle_delta / (double)cum_tick_delta );
+    syscall_r            = (double)sys_delta / (double)cum_tick_delta;
     rx_ok_pps            = 1e9*( (double)rx_ok_delta  /(double)dt );
     rx_bps               = 8e9*( (double)rx_byte_delta/(double)dt );
     rx_drop_pps          = 1e9*( (double)rx_drop_delta/(double)dt );
@@ -159,6 +164,7 @@ render_status( ulong volatile const * net_metrics ) {
     ts_last              = now;
     cum_idle_last        = cum_idle_now;
     cum_tick_last        = cum_tick_now;
+    sys_tick_last        = sys_tick_now;
     rx_ok_last           = rx_ok_now;
     rx_byte_last         = rx_byte_now;
     rx_drop_last         = rx_drop_now;
@@ -170,13 +176,13 @@ render_status( ulong volatile const * net_metrics ) {
   ulong rx_busy = net_metrics[ MIDX( GAUGE, NET, RX_BUSY_CNT ) ];
   ulong tx_idle = net_metrics[ MIDX( GAUGE, NET, TX_IDLE_CNT ) ];
   ulong tx_busy = net_metrics[ MIDX( GAUGE, NET, TX_BUSY_CNT ) ];
-  printf( "\033[2K" "  Net busy: %.2f%%\n"
+  printf( "\033[2K" "  Net busy: %.2f%% Syscall: %.2f%%\n"
           "\033[2K" "  RX ok:   %10.3e pps %10.3e bps\n"
           "\033[2K" "  RX drop: %10.3e pps\n"
           "\033[2K" "  TX ok:   %10.3e pps %10.3e bps\n"
           "\033[2K" "  RX bufs: %6lu idle %6lu busy\n"
           "\033[2K" "  TX bufs: %6lu idle %6lu busy\n",
-          100.*busy_r,
+          100.*busy_r, 100.*syscall_r,
           rx_ok_pps,   rx_bps,
           rx_drop_pps,
           tx_ok_pps,   tx_bps,

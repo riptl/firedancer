@@ -72,6 +72,7 @@
 | <span class="metrics-name">net_&#8203;xdp_&#8203;rx_&#8203;ring_&#8203;full</span> | counter | xdp_statistics_v1.rx_ring_full: Dropped due to rx ring being full |
 | <span class="metrics-name">net_&#8203;xdp_&#8203;rx_&#8203;fill_&#8203;ring_&#8203;empty_&#8203;descs</span> | counter | xdp_statistics_v1.rx_fill_ring_empty_descs: Failed to retrieve item from fill ring |
 | <span class="metrics-name">net_&#8203;xdp_&#8203;tx_&#8203;ring_&#8203;empty_&#8203;descs</span> | counter | xdp_statistics_v1.tx_ring_empty_descs: Failed to retrieve item from tx ring |
+| <span class="metrics-name">net_&#8203;regime_&#8203;syscall</span> | counter | Cumulative ticks spent waiting for syscalls |
 
 </div>
 
