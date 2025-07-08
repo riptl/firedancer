@@ -2,15 +2,11 @@
 #define HEADER_fd_src_flamenco_runtime_context_fd_exec_slot_ctx_h
 
 #include "../fd_blockstore.h"
-#include "../../../funk/fd_funk.h"
-#include "../../../util/rng/fd_rng.h"
-#include "../../../util/wksp/fd_wksp.h"
 
 #include "../../types/fd_types.h"
 #include "../fd_txncache.h"
-#include "../fd_acc_mgr.h"
-#include "../fd_bank_hash_cmp.h"
 #include "../fd_bank.h"
+#include "../sysvar/fd_sysvar_cache.h"
 
 /* fd_exec_slot_ctx_t is the context that stays constant during all
    transactions in a block. */
@@ -26,6 +22,7 @@ struct fd_exec_slot_ctx {
 
   fd_banks_t *                banks;
   fd_bank_t *                 bank;
+  fd_sysvar_cache_t *         sysvar_cache;
 
   /* External joins, pointers to be set by caller */
 

@@ -1,5 +1,6 @@
 #include "fd_exec_slot_ctx.h"
 #include "../sysvar/fd_sysvar_epoch_schedule.h"
+#include "../sysvar/fd_sysvar_last_restart_slot.h"
 #include "../program/fd_vote_program.h"
 #include "../../../ballet/lthash/fd_lthash.h"
 
@@ -322,11 +323,11 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *                slot_ctx,
 
   /* Epoch Schedule */
 
-  fd_bank_epoch_schedule_set( slot_ctx->bank, old_bank->epoch_schedule );
+  fd_sysvar_epoch_schedule_write( slot_ctx, &old_bank->epoch_schedule );
 
   /* Rent */
 
-  fd_bank_rent_set( slot_ctx->bank, old_bank->rent_collector.rent );
+  fd_sysvar_rent_write( slot_ctx, &old_bank->rent_collector.rent );
 
   /* Last Restart Slot */
 
@@ -337,26 +338,9 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *                slot_ctx,
      To find the last restart slot, take the highest hard fork slot
      number that is less or equal than the current slot number.
      (There might be some hard forks in the future, ignore these) */
-  do {
-    fd_sol_sysvar_last_restart_slot_t * last_restart_slot = fd_bank_last_restart_slot_modify( slot_ctx->bank );
-    last_restart_slot->slot = 0UL;
-
-    if( FD_UNLIKELY( old_bank->hard_forks.hard_forks_len == 0 ) ) {
-      /* SIMD-0047: The first restart slot should be `0` */
-      break;
-    }
-
-    fd_slot_pair_t const * head = fd_hard_forks_hard_forks_join( &old_bank->hard_forks );
-    fd_slot_pair_t const * tail = head + old_bank->hard_forks.hard_forks_len - 1UL;
-
-    for( fd_slot_pair_t const *pair = tail; pair >= head; pair-- ) {
-      if( pair->slot <= slot_ctx->slot ) {
-        fd_sol_sysvar_last_restart_slot_t * last_restart_slot = fd_bank_last_restart_slot_modify( slot_ctx->bank );
-        last_restart_slot->slot = pair->slot;
-        break;
-      }
-    }
-  } while (0);
+  fd_sol_sysvar_last_restart_slot_t lrs_sysvar = { fd_sysvar_last_restart_slot_derive( &old_bank->hard_forks, slot_ctx->slot ) };
+  fd_bank_last_restart_slot_set( slot_ctx->bank, lrs_sysvar );
+  fd_sysvar_last_restart_slot_update( slot_ctx, lrs_sysvar.slot );
 
   /* FIXME: Remove the magic number here. */
   fd_clock_timestamp_votes_global_t * clock_timestamp_votes = fd_bank_clock_timestamp_votes_locking_modify( slot_ctx->bank );
@@ -372,8 +356,8 @@ fd_exec_slot_ctx_recover( fd_exec_slot_ctx_t *                slot_ctx,
   /* Move EpochStakes */
   do {
 
-    fd_epoch_schedule_t const * epoch_schedule = fd_bank_epoch_schedule_query( slot_ctx->bank );
-    ulong epoch = fd_slot_to_epoch( epoch_schedule, slot_ctx->slot, NULL );
+    fd_epoch_schedule_t epoch_schedule = fd_sysvar_epoch_schedule_read_nofail( slot_ctx->sysvar_cache );
+    ulong epoch = fd_slot_to_epoch( &epoch_schedule, slot_ctx->slot, NULL );
 
     /* We need to save the vote accounts for the current epoch and the next
        epoch as it is used to calculate the leader schedule at the epoch

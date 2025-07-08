@@ -1,14 +1,15 @@
 #include "fd_vm_syscall.h"
 #include "../../runtime/program/fd_vote_program.h"
-#include "../../runtime/sysvar/fd_sysvar.h"
-#include "../../runtime/sysvar/fd_sysvar_clock.h"
-#include "../../runtime/sysvar/fd_sysvar_epoch_rewards.h"
-#include "../../runtime/sysvar/fd_sysvar_epoch_schedule.h"
-#include "../../runtime/sysvar/fd_sysvar_rent.h"
-#include "../../runtime/sysvar/fd_sysvar_last_restart_slot.h"
 #include "../../runtime/context/fd_exec_txn_ctx.h"
 #include "../../runtime/context/fd_exec_instr_ctx.h"
 #include "../../runtime/fd_system_ids.h"
+
+/* FIXME: In the original version of this code, there was an FD_TEST
+   to check if the VM was attached to an instruction context (that
+   would have crashed anyway because of pointer chasing).  If the VM
+   is being run outside the Solana runtime, it should never invoke
+   this syscall in the first place.  So we treat this as a SIGCALL in
+   a non-crashing way for the time being. */
 
 int
 fd_vm_syscall_sol_get_clock_sysvar( /**/            void *  _vm,
@@ -18,15 +19,7 @@ fd_vm_syscall_sol_get_clock_sysvar( /**/            void *  _vm,
                                     FD_PARAM_UNUSED ulong   r4,
                                     FD_PARAM_UNUSED ulong   r5,
                                     /**/            ulong * _ret ) {
-  fd_vm_t * vm = (fd_vm_t *)_vm;
-
-  /* FIXME: In the original version of this code, there was an FD_TEST
-     to check if the VM was attached to an instruction context (that
-     would have crashed anyway because of pointer chasing).  If the VM
-     is being run outside the Solana runtime, it should never invoke
-     this syscall in the first place.  So we treat this as a SIGCALL in
-     a non-crashing way. */
-
+  fd_vm_t * vm = _vm;
   fd_exec_instr_ctx_t const * instr_ctx = vm->instr_ctx;
   if( FD_UNLIKELY( !instr_ctx ) ) return FD_VM_SYSCALL_ERR_OUTSIDE_RUNTIME;
 
@@ -34,15 +27,9 @@ fd_vm_syscall_sol_get_clock_sysvar( /**/            void *  _vm,
 
   void * out = FD_VM_MEM_HADDR_ST( vm, out_vaddr, FD_VM_ALIGN_RUST_SYSVAR_CLOCK, sizeof(fd_sol_sysvar_clock_t) );
 
-
-  fd_sol_sysvar_clock_t const * clock = fd_sysvar_clock_read( instr_ctx->txn_ctx->funk,
-                                                              instr_ctx->txn_ctx->funk_txn,
-                                                              instr_ctx->txn_ctx->spad );
-  if( FD_UNLIKELY( !clock ) ) {
-    FD_LOG_ERR(( "failed to read sysvar clock" ));
-  }
-
-  memcpy( out, clock, sizeof(fd_sol_sysvar_clock_t) );
+  fd_sol_sysvar_clock_t clock = fd_sysvar_clock_read_nofail( instr_ctx->sysvar_cache );
+  memcpy( out, &clock, sizeof(fd_sol_sysvar_clock_t) );
+  /* No padding bytes copied */
 
   *_ret = 0UL;
   return FD_VM_SUCCESS;
@@ -56,30 +43,17 @@ fd_vm_syscall_sol_get_epoch_schedule_sysvar( /**/            void *  _vm,
                                              FD_PARAM_UNUSED ulong   r4,
                                              FD_PARAM_UNUSED ulong   r5,
                                              /**/            ulong * _ret ) {
-  fd_vm_t * vm = (fd_vm_t *)_vm;
-
-  /* FIXME: In the original version of this code, there was an FD_TEST
-     to check if the VM was attached to an instruction context (that
-     would have crashed anyway because of pointer chasing).  If the VM
-     is being run outside the Solana runtime, it should never invoke
-     this syscall in the first place.  So we treat this as a SIGCALL in
-     a non-crashing way for the time being. */
-
+  fd_vm_t * vm = _vm;
   fd_exec_instr_ctx_t const * instr_ctx = vm->instr_ctx;
   if( FD_UNLIKELY( !instr_ctx ) ) return FD_VM_SYSCALL_ERR_OUTSIDE_RUNTIME;
 
   FD_VM_CU_UPDATE( vm, fd_ulong_sat_add( FD_VM_SYSVAR_BASE_COST, sizeof(fd_epoch_schedule_t) ) );
 
-  void * out = FD_VM_MEM_HADDR_ST( vm, out_vaddr, FD_VM_ALIGN_RUST_SYSVAR_EPOCH_SCHEDULE, sizeof(fd_epoch_schedule_t) );
+  uchar * out = FD_VM_MEM_HADDR_ST( vm, out_vaddr, FD_VM_ALIGN_RUST_SYSVAR_EPOCH_SCHEDULE, sizeof(fd_epoch_schedule_t) );
 
-  fd_epoch_schedule_t * schedule = fd_sysvar_epoch_schedule_read( instr_ctx->txn_ctx->funk,
-                                                                  instr_ctx->txn_ctx->funk_txn,
-                                                                  instr_ctx->txn_ctx->spad );
-  if( FD_UNLIKELY( schedule == NULL ) ) {
-    FD_LOG_ERR(( "failed to read sysvar epoch schedule" ));
-  }
-
-  memcpy( out, schedule, sizeof(fd_epoch_schedule_t) );
+  fd_epoch_schedule_t schedule = fd_sysvar_epoch_schedule_read_nofail( instr_ctx->sysvar_cache );
+  memcpy( out, &schedule, sizeof(fd_epoch_schedule_t) );
+  memset( out+17, 0, 7 ); /* padding */
 
   *_ret = 0UL;
   return FD_VM_SUCCESS;
@@ -93,36 +67,23 @@ fd_vm_syscall_sol_get_rent_sysvar( /**/            void *  _vm,
                                    FD_PARAM_UNUSED ulong   r4,
                                    FD_PARAM_UNUSED ulong   r5,
                                    /**/            ulong * _ret ) {
-  fd_vm_t * vm = (fd_vm_t *)_vm;
-
-  /* FIXME: In the original version of this code, there was an FD_TEST
-     to check if the VM was attached to an instruction context (that
-     would have crashed anyway because of pointer chasing).  If the VM
-     is being run outside the Solana runtime, it should never invoke
-     this syscall in the first place.  So we treat this as a SIGCALL in
-     a non-crashing way for the time being. */
-
+  fd_vm_t * vm = _vm;
   fd_exec_instr_ctx_t const * instr_ctx = vm->instr_ctx;
   if( FD_UNLIKELY( !instr_ctx ) ) return FD_VM_SYSCALL_ERR_OUTSIDE_RUNTIME;
 
   FD_VM_CU_UPDATE( vm, fd_ulong_sat_add( FD_VM_SYSVAR_BASE_COST, sizeof(fd_rent_t) ) );
 
-  void * out = FD_VM_MEM_HADDR_ST( vm, out_vaddr, FD_VM_ALIGN_RUST_SYSVAR_RENT, sizeof(fd_rent_t) );
+  uchar * out = FD_VM_MEM_HADDR_ST( vm, out_vaddr, FD_VM_ALIGN_RUST_SYSVAR_RENT, sizeof(fd_rent_t) );
 
-  fd_rent_t const * rent = fd_sysvar_rent_read( instr_ctx->txn_ctx->funk,
-                                                instr_ctx->txn_ctx->funk_txn,
-                                                instr_ctx->txn_ctx->spad );
-  if( FD_UNLIKELY( !rent ) ) {
-    FD_LOG_ERR(( "failed to read sysvar rent" ));
-  }
-
-  memcpy( out, rent, sizeof(fd_rent_t) );
+  fd_rent_t rent = fd_sysvar_rent_read_nofail( instr_ctx->sysvar_cache );
+  memcpy( out, &rent, sizeof(fd_rent_t) );
+  memset( out+17, 0, 7 ); /* padding */
 
   *_ret = 0UL;
   return FD_VM_SUCCESS;
 }
 
-/* https://github.com/anza-xyz/agave/blob/36323b6dcd3e29e4d6fe6d73d716a3f33927148b/programs/bpf_loader/src/syscalls/sysvar.rs#L144 */
+/* https://github.com/anza-xyz/agave/blob/v2.3.2/programs/bpf_loader/src/syscalls/sysvar.rs#L149 */
 int
 fd_vm_syscall_sol_get_last_restart_slot_sysvar( /**/            void *  _vm,
                                                 /**/            ulong   out_vaddr,
@@ -131,22 +92,23 @@ fd_vm_syscall_sol_get_last_restart_slot_sysvar( /**/            void *  _vm,
                                                 FD_PARAM_UNUSED ulong   r4,
                                                 FD_PARAM_UNUSED ulong   r5,
                                                 /**/            ulong * _ret ) {
-  fd_vm_t * vm = (fd_vm_t *)_vm;
+  fd_vm_t * vm = _vm;
+  fd_exec_instr_ctx_t const * instr_ctx = vm->instr_ctx;
+  if( FD_UNLIKELY( !instr_ctx ) ) return FD_VM_SYSCALL_ERR_OUTSIDE_RUNTIME;
 
   FD_VM_CU_UPDATE( vm, fd_ulong_sat_add( FD_VM_SYSVAR_BASE_COST, sizeof(fd_sol_sysvar_last_restart_slot_t) ) );
 
-  fd_sol_sysvar_last_restart_slot_t * out = FD_VM_MEM_HADDR_ST( vm,
-                                                                out_vaddr,
-                                                                FD_VM_ALIGN_RUST_SYSVAR_LAST_RESTART_SLOT,
-                                                                sizeof(fd_sol_sysvar_last_restart_slot_t) );
+  void * out = FD_VM_MEM_HADDR_ST(
+      vm, out_vaddr,
+      FD_VM_ALIGN_RUST_SYSVAR_LAST_RESTART_SLOT,
+      sizeof(fd_sol_sysvar_last_restart_slot_t) );
 
-  fd_sol_sysvar_last_restart_slot_t * last_restart_slot = fd_sysvar_last_restart_slot_read( vm->instr_ctx->txn_ctx->funk,
-                                                                                            vm->instr_ctx->txn_ctx->funk_txn,
-                                                                                            vm->instr_ctx->txn_ctx->spad );
-  if( FD_UNLIKELY( !last_restart_slot ) ) {
-    FD_LOG_ERR(( "failed to read sysvar last restart slot" ));
+  fd_sol_sysvar_last_restart_slot_t last_restart_slot;
+  if( FD_UNLIKELY( !fd_sysvar_last_restart_slot_read( vm->instr_ctx->sysvar_cache, &last_restart_slot ) ) ) {
+    FD_TXN_ERR_FOR_LOG_INSTR( vm->instr_ctx->txn_ctx, FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR, vm->instr_ctx->txn_ctx->instr_err_idx );
+    return FD_VM_ERR_INVAL;
   }
-  *out = *last_restart_slot;
+  memcpy( out, &last_restart_slot, sizeof(fd_sol_sysvar_last_restart_slot_t) );
 
   *_ret = 0UL;
   return FD_VM_SUCCESS;
@@ -161,7 +123,9 @@ fd_vm_syscall_sol_get_sysvar( /**/            void *  _vm,
                               /**/            ulong   sz,
                               FD_PARAM_UNUSED ulong   r5,
                               /**/            ulong * _ret ) {
-  fd_vm_t * vm = (fd_vm_t *)_vm;
+  fd_vm_t * vm = _vm;
+  fd_exec_instr_ctx_t const * instr_ctx = vm->instr_ctx;
+  if( FD_UNLIKELY( !instr_ctx ) ) return FD_VM_SYSCALL_ERR_OUTSIDE_RUNTIME;
 
   /* sysvar_id_cost seems to just always be 32 / 250 = 0...
      https://github.com/anza-xyz/agave/blob/v2.1.0/programs/bpf_loader/src/syscalls/sysvar.rs#L190-L197 */
@@ -197,18 +161,16 @@ fd_vm_syscall_sol_get_sysvar( /**/            void *  _vm,
     return FD_VM_SUCCESS;
   }
 
-  /* we know that the account data won't be changed for the lifetime of this view, because sysvars don't change inter-block */
-  FD_TXN_ACCOUNT_DECL( sysvar_account );
-  err = fd_txn_account_init_from_funk_readonly( sysvar_account, sysvar_id, vm->instr_ctx->txn_ctx->funk, vm->instr_ctx->txn_ctx->funk_txn );
-  if( FD_UNLIKELY( err ) ) {
+  ulong         sysvar_buf_len;
+  uchar const * sysvar_buf =
+    fd_sysvar_cache_data_query( vm->instr_ctx->sysvar_cache, sysvar_id, &sysvar_buf_len );
+  if( FD_UNLIKELY( !sysvar_buf ) ) {
     *_ret = 2UL;
     return FD_VM_SUCCESS;
   }
 
   /* https://github.com/anza-xyz/agave/blob/v2.1.0/programs/bpf_loader/src/syscalls/sysvar.rs#L223-L228
      Note the length check is at the very end to fail after performing sufficient checks. */
-  const uchar * sysvar_buf     = sysvar_account->vt->get_data( sysvar_account );
-  ulong         sysvar_buf_len = sysvar_account->vt->get_data_len( sysvar_account );
 
   if( FD_UNLIKELY( offset_length>sysvar_buf_len ) ) {
     *_ret = 1UL;
@@ -601,23 +563,21 @@ fd_vm_syscall_sol_get_epoch_rewards_sysvar( /**/            void *  _vm,
                                             FD_PARAM_UNUSED ulong   r4,
                                             FD_PARAM_UNUSED ulong   r5,
                                             /**/            ulong * _ret ) {
-  fd_vm_t * vm = (fd_vm_t *)_vm;
-
+  fd_vm_t * vm = _vm;
   fd_exec_instr_ctx_t const * instr_ctx = vm->instr_ctx;
   if( FD_UNLIKELY( !instr_ctx ) ) return FD_VM_SYSCALL_ERR_OUTSIDE_RUNTIME;
 
   FD_VM_CU_UPDATE( vm, fd_ulong_sat_add( FD_VM_SYSVAR_BASE_COST, sizeof(fd_sysvar_epoch_rewards_t) ) );
 
-  void * out = FD_VM_MEM_HADDR_ST( vm, out_vaddr, FD_VM_ALIGN_RUST_SYSVAR_EPOCH_REWARDS, sizeof(fd_sysvar_epoch_rewards_t) );
+  uchar * out = FD_VM_MEM_HADDR_ST( vm, out_vaddr, FD_VM_ALIGN_RUST_SYSVAR_EPOCH_REWARDS, sizeof(fd_sysvar_epoch_rewards_t) );
 
-  fd_sysvar_epoch_rewards_t const * epoch_rewards = fd_sysvar_epoch_rewards_read( instr_ctx->txn_ctx->funk,
-                                                                                  instr_ctx->txn_ctx->funk_txn,
-                                                                                  instr_ctx->txn_ctx->spad );
-  if( FD_UNLIKELY( !epoch_rewards ) ) {
-    FD_LOG_ERR(( "failed to read sysvar epoch rewards" ));
+  fd_sysvar_epoch_rewards_t epoch_rewards;
+  if( FD_UNLIKELY( !fd_sysvar_epoch_rewards_read( instr_ctx->sysvar_cache, &epoch_rewards ) ) ) {
+    FD_TXN_ERR_FOR_LOG_INSTR( vm->instr_ctx->txn_ctx, FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR, vm->instr_ctx->txn_ctx->instr_err_idx );
+    return FD_VM_ERR_INVAL;
   }
-
-  memcpy( out, epoch_rewards, sizeof(fd_sysvar_epoch_rewards_t) );
+  memcpy( out, &epoch_rewards, sizeof(fd_sysvar_epoch_rewards_t) );
+  memset( out+81, 0, 7 ); /* padding */
 
   *_ret = 0UL;
   return FD_VM_SUCCESS;

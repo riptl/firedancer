@@ -2,11 +2,11 @@
 #include "../fd_borrowed_account.h"
 #include "../fd_acc_mgr.h"
 #include "../fd_system_ids.h"
-#include "../context/fd_exec_slot_ctx.h"
 #include "../context/fd_exec_txn_ctx.h"
-#include "../sysvar/fd_sysvar_rent.h"
 #include "../sysvar/fd_sysvar_recent_hashes.h"
+#include "../sysvar/fd_sysvar_rent.h"
 #include "../fd_executor.h"
+#include "../fd_runtime_err.h"
 
 static int
 require_acct( fd_exec_instr_ctx_t * ctx,
@@ -34,7 +34,8 @@ require_acct_rent( fd_exec_instr_ctx_t * ctx,
     if( FD_UNLIKELY( err ) ) return err;
   } while(0);
 
-  fd_rent_t const * rent = fd_sysvar_rent_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
+  fd_rent_t rent_;
+  fd_rent_t const * rent = fd_sysvar_rent_read( ctx->sysvar_cache, &rent_ );
   if( FD_UNLIKELY( !rent ) )
     return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
 
@@ -43,21 +44,17 @@ require_acct_rent( fd_exec_instr_ctx_t * ctx,
 }
 
 static int
-require_acct_recent_blockhashes( fd_exec_instr_ctx_t *        ctx,
-                                 ushort                       idx,
-                                 fd_recent_block_hashes_t * * out ) {
+require_acct_recent_blockhashes( fd_exec_instr_ctx_t * ctx,
+                                 ushort                idx ) {
 
   do {
     int err = require_acct( ctx, idx, &fd_sysvar_recent_block_hashes_id );
     if( FD_UNLIKELY( err ) ) return err;
   } while(0);
 
-  fd_recent_block_hashes_global_t const * rbh_global = fd_sysvar_recent_hashes_read( ctx->txn_ctx->funk, ctx->txn_ctx->funk_txn, ctx->txn_ctx->spad );
-  if( FD_UNLIKELY( !rbh_global ) ) {
+  if( FD_UNLIKELY( !fd_sysvar_recent_hashes_is_valid( ctx->sysvar_cache ) ) ) {
     return FD_EXECUTOR_INSTR_ERR_UNSUPPORTED_SYSVAR;
   }
-
-  (*out)->hashes = deq_fd_block_block_hash_entry_t_join( (uchar*)rbh_global + rbh_global->hashes_offset );
 
   return FD_EXECUTOR_INSTR_SUCCESS;
 }
@@ -245,6 +242,22 @@ fd_system_program_advance_nonce_account( fd_exec_instr_ctx_t *   ctx,
   return FD_EXECUTOR_INSTR_SUCCESS;
 }
 
+/* recent_blockhashes_is_empty returns 1 if the recent blockhashes
+   sysvar is empty, 0 otherwise.  Assumes that sysvar is valid.  This
+   function only exists because the fd_types API is horrible and serves
+   to hide away the mess. */
+
+static int
+recent_blockhashes_is_empty( fd_sysvar_cache_t const * sysvar_cache ) {
+  fd_block_hash_queue_global_t const * sysvar = fd_sysvar_recent_hashes_join_const( sysvar_cache );
+  if( FD_UNLIKELY( !sysvar ) ) FD_LOG_CRIT(( "Recent blockhashes sysvar is not initialized" )); /* unreachable */
+  fd_block_block_hash_entry_t const * hashes = fd_recent_block_hashes_hashes_join( (void *)sysvar );
+  int const is_empty = deq_fd_block_block_hash_entry_t_empty( hashes );
+  deq_fd_block_block_hash_entry_t_leave( (void *)hashes );
+  fd_sysvar_recent_hashes_leave_const( sysvar_cache, sysvar );
+  return is_empty;
+}
+
 /* https://github.com/solana-labs/solana/blob/v1.17.23/programs/system/src/system_processor.rs#L423-L441
 
    Matches Solana Labs system_processor SystemInstruction::AdvanceNonceAccount => { ... } */
@@ -268,18 +281,14 @@ fd_system_program_exec_advance_nonce_account( fd_exec_instr_ctx_t * ctx ) {
 
   /* https://github.com/solana-labs/solana/blob/v1.17.23/programs/system/src/system_processor.rs#L427-L432 */
 
-  fd_recent_block_hashes_t   recent_blockhashes_obj;
-  fd_recent_block_hashes_t * recent_blockhashes = &recent_blockhashes_obj;
   do {
-    err = require_acct_recent_blockhashes( ctx, 1UL, &recent_blockhashes );
+    err = require_acct_recent_blockhashes( ctx, 1UL );
     if( FD_UNLIKELY( err ) ) return err;
   } while(0);
 
-  fd_block_block_hash_entry_t const * hashes = recent_blockhashes->hashes;
-
   /* https://github.com/solana-labs/solana/blob/v1.17.23/programs/system/src/system_processor.rs#L433-L439 */
 
-  if( FD_UNLIKELY( deq_fd_block_block_hash_entry_t_empty( hashes ) ) ) {
+  if( FD_UNLIKELY( recent_blockhashes_is_empty( ctx->sysvar_cache ) ) ) {
     fd_log_collector_msg_literal( ctx, "Advance nonce account: recent blockhash list is empty" );
     ctx->txn_ctx->custom_err = FD_SYSTEM_PROGRAM_ERR_NONCE_NO_RECENT_BLOCKHASHES;
     return FD_EXECUTOR_INSTR_ERR_CUSTOM_ERR;
@@ -480,10 +489,8 @@ fd_system_program_exec_withdraw_nonce_account( fd_exec_instr_ctx_t * ctx,
 
   /* https://github.com/solana-labs/solana/blob/v1.17.23/programs/system/src/system_processor.rs#L445-L449 */
 
-  fd_recent_block_hashes_t   recent_blockhashes_obj;
-  fd_recent_block_hashes_t * recent_blockhashes = &recent_blockhashes_obj;
   do {
-    int err = require_acct_recent_blockhashes( ctx, 2UL, &recent_blockhashes );
+    int err = require_acct_recent_blockhashes( ctx, 2UL );
     if( FD_UNLIKELY( err ) ) return err;
   } while(0);
 
@@ -633,18 +640,14 @@ fd_system_program_exec_initialize_nonce_account( fd_exec_instr_ctx_t * ctx,
 
   /* https://github.com/solana-labs/solana/blob/v1.17.23/programs/system/src/system_processor.rs#L466-L471 */
 
-  fd_recent_block_hashes_t   recent_blockhashes_obj;
-  fd_recent_block_hashes_t * recent_blockhashes = &recent_blockhashes_obj;
   do {
-    err = require_acct_recent_blockhashes( ctx, 1UL, &recent_blockhashes );
+    err = require_acct_recent_blockhashes( ctx, 1UL );
     if( FD_UNLIKELY( err ) ) return err;
   } while(0);
 
-  fd_block_block_hash_entry_t const * hashes = recent_blockhashes->hashes;
-
   /* https://github.com/solana-labs/solana/blob/v1.17.23/programs/system/src/system_processor.rs#L472-L478 */
 
-  if( FD_UNLIKELY( deq_fd_block_block_hash_entry_t_empty( hashes ) ) ) {
+  if( FD_UNLIKELY( recent_blockhashes_is_empty( ctx->sysvar_cache ) ) ) {
     fd_log_collector_msg_literal( ctx, "Initialize nonce account: recent blockhash list is empty" );
     ctx->txn_ctx->custom_err = FD_SYSTEM_PROGRAM_ERR_NONCE_NO_RECENT_BLOCKHASHES;
     return FD_EXECUTOR_INSTR_ERR_CUSTOM_ERR;
@@ -890,7 +893,7 @@ fd_check_transaction_age( fd_exec_txn_ctx_t * txn_ctx ) {
   /* get_hash_info_if_valid. Check 151 hashes from the block hash queue and its
      age to see if it is valid. */
 
-  if( fd_executor_is_blockhash_valid_for_age( block_hash_queue, recent_blockhash, FD_RECENT_BLOCKHASHES_MAX_ENTRIES ) ) {
+  if( fd_executor_is_blockhash_valid_for_age( block_hash_queue, recent_blockhash, FD_SYSVAR_RECENT_HASHES_CAP ) ) {
     return FD_RUNTIME_EXECUTE_SUCCESS;
   }
 

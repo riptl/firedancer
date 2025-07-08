@@ -231,7 +231,7 @@ typedef struct fd_epoch_stake_history_entry_pair fd_epoch_stake_history_entry_pa
 #define FD_EPOCH_STAKE_HISTORY_ENTRY_PAIR_ALIGN alignof(fd_epoch_stake_history_entry_pair_t)
 
 /* https://github.com/firedancer-io/solana/blob/v1.17/sdk/program/src/stake_history.rs#L12-L75 */
-/* Encoded Size: Dynamic */
+/* Encoded Size: Fixed (16392 bytes) */
 struct fd_stake_history {
   ulong fd_stake_history_len;
   ulong fd_stake_history_size;

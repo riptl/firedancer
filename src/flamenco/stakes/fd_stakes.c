@@ -3,6 +3,7 @@
 #include "../runtime/context/fd_exec_slot_ctx.h"
 #include "../runtime/program/fd_stake_program.h"
 #include "../runtime/sysvar/fd_sysvar_stake_history.h"
+#include "../runtime/fd_acc_mgr.h"
 
 /* fd_stakes_accum_by_node converts Stakes (unordered list of (vote acc,
    active stake) tuples) to StakedNodes (rbtree mapping (node identity)
@@ -814,7 +815,7 @@ fd_stakes_activate_epoch( fd_exec_slot_ctx_t *  slot_ctx,
   /* Add a new entry to the Stake History sysvar for the previous epoch
      https://github.com/solana-labs/solana/blob/88aeaa82a856fc807234e7da0b31b89f2dc0e091/runtime/src/stakes.rs#L181-L192 */
 
-  fd_stake_history_t const * history = fd_sysvar_stake_history_read( slot_ctx->funk, slot_ctx->funk_txn, runtime_spad );
+  fd_stake_history_t const * history = fd_sysvar_stake_history_join_const( slot_ctx->sysvar_cache );
   if( FD_UNLIKELY( !history ) ) FD_LOG_ERR(( "StakeHistory sysvar is missing from sysvar cache" ));
 
   ulong stake_delegations_size = fd_delegation_pair_t_map_size(
@@ -846,6 +847,8 @@ fd_stakes_activate_epoch( fd_exec_slot_ctx_t *  slot_ctx,
                              exec_spad_cnt,
                              runtime_spad );
 
+  fd_sysvar_stake_history_leave_const( slot_ctx->sysvar_cache, history );
+
   /* https://github.com/anza-xyz/agave/blob/v2.1.6/runtime/src/stakes.rs#L359 */
   fd_epoch_stake_history_entry_pair_t new_elem = {
     .epoch        = stakes->epoch,
@@ -856,7 +859,7 @@ fd_stakes_activate_epoch( fd_exec_slot_ctx_t *  slot_ctx,
     }
   };
 
-  fd_sysvar_stake_history_update( slot_ctx, &new_elem, runtime_spad );
+  fd_sysvar_stake_history_update( slot_ctx, &new_elem );
 
   fd_bank_stakes_end_locking_query( slot_ctx->bank );
 

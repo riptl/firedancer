@@ -1022,7 +1022,10 @@ class StaticVectorMember(TypeNode):
         self.ignore_underflow = (bool(json["ignore_underflow"]) if "ignore_underflow" in json else False)
 
     def isFixedSize(self):
-        return False
+        return self.element in fixedsizetypes
+
+    def fixedSize(self):
+        return 8 + self.size * fixedsizetypes[self.element]
 
     def isFlat(self):
           return self.element in flattypes
