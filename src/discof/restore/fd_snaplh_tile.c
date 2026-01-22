@@ -13,13 +13,7 @@
 #include <fcntl.h>    /* open  */
 #include <unistd.h>   /* close */
 
-#if FD_HAS_LIBURING
 #include "../../vinyl/io/fd_vinyl_io_ur.h"
-#include <liburing.h>
-typedef struct io_uring fd_io_uring_t;
-#else
-typedef char            fd_io_uring_t;
-#endif
 
 #define NAME "snaplh"
 
@@ -97,7 +91,6 @@ struct fd_snaplh_tile {
 
     int               io_uring_enabled;
     fd_vinyl_io_t *   io;
-    fd_io_uring_t *   ring;
   } vinyl;
 
   struct {

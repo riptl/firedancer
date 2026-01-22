@@ -1,15 +1,10 @@
 #include "fd_vinyl_io_ur.h"
-#include <liburing/io_uring.h>
-
-#if !FD_HAS_LIBURING
-#error "This test requires liburing"
-#endif
 
 #include <stdlib.h> /* mkstemp */
 #include <errno.h>
 #include <unistd.h> /* ftruncate */
 #include <fcntl.h>  /* open */
-#include <liburing.h>
+#include <linux/io_uring.h>
 
 #include "test_vinyl_io_common.c"
 
