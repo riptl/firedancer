@@ -16,7 +16,7 @@
 #include <fcntl.h>    /* open  */
 #include <unistd.h>   /* close */
 
-#include "../../vinyl/io/fd_vinyl_io_ur.h"
+#include "../../vinyl/io/ur/fd_vinyl_io_ur.h"
 
 #define NAME "snaplh"
 

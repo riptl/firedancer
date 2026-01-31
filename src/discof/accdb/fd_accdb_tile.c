@@ -12,7 +12,7 @@
 #include "../../disco/metrics/fd_metrics.h"
 #include "../../vinyl/fd_vinyl.h"
 #include "../../vinyl/fd_vinyl_base.h"
-#include "../../vinyl/io/fd_vinyl_io_ur.h"
+#include "../../vinyl/io/ur/fd_vinyl_io_ur.h"
 #include "../../util/pod/fd_pod_format.h"
 #include "../../util/io_uring/fd_io_uring_setup.h"
 #include "../../util/io_uring/fd_io_uring_register.h"

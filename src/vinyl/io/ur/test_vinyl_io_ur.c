@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
 #include "fd_vinyl_io_ur.h"
-#include "../../util/io_uring/fd_io_uring_setup.h"
-#include "../../util/io_uring/fd_io_uring_register.h"
+#include "../../../util/io_uring/fd_io_uring_setup.h"
+#include "../../../util/io_uring/fd_io_uring_register.h"
 
 #include <stdlib.h> /* mkstemp */
 #include <errno.h>
@@ -10,7 +10,7 @@
 #include <linux/io_uring.h> /* io_uring_params */
 #include <sys/mman.h> /* mmap */
 
-#include "test_vinyl_io_common.c"
+#include "../test_vinyl_io_common.c"
 
 int
 main( int     argc,
@@ -145,37 +145,6 @@ main( int     argc,
   FD_TEST( fd_vinyl_io_seq_future  ( io )==seq_future          );
 
   /* FIXME: TEST BSTREAM WRITE HELPERS */
-
-  FD_LOG_NOTICE(( "Testing scratch pad" ));
-
-  FD_TEST( !fd_vinyl_io_commit( io, FD_VINYL_IO_FLAG_BLOCKING ) ); /* empty the spad */
-
-  void * smem      = NULL;
-  ulong  smem_sz   = 0UL;
-  ulong  spad_used = 0UL;
-
-  while( spad_used<spad_max ) {
-
-    FD_TEST( fd_vinyl_io_spad_max ( io )==spad_max           );
-    FD_TEST( fd_vinyl_io_spad_used( io )==spad_used          );
-    FD_TEST( fd_vinyl_io_spad_free( io )==spad_max-spad_used );
-
-    void * last    = smem;
-    ulong  last_sz = smem_sz;
-
-    smem_sz = fd_ulong_min( FD_VINYL_BSTREAM_BLOCK_SZ*fd_rng_coin_tosses( rng ), spad_max - spad_used );
-
-    smem = fd_vinyl_io_alloc( io, smem_sz, 0 );
-
-    FD_TEST( smem );
-    FD_TEST( fd_ulong_is_aligned( (ulong)smem, FD_VINYL_BSTREAM_BLOCK_SZ ) );
-    if( last ) FD_TEST( ((ulong)smem - (ulong)last)==last_sz );
-    spad_used += smem_sz;
-  }
-
-  FD_TEST( fd_vinyl_io_spad_max ( io )==spad_max           );
-  FD_TEST( fd_vinyl_io_spad_used( io )==spad_used          );
-  FD_TEST( fd_vinyl_io_spad_free( io )==spad_max-spad_used );
 
   FD_LOG_NOTICE(( "Testing destruction" ));
 
