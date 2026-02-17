@@ -43,8 +43,8 @@ fdos_vmm_alloc_pml4( fdos_vmm_alloc_t * alloc );
 
 void
 fdos_vmm_map_range( ulong *            pml4,
-                    ulong              paddr,
                     ulong              vaddr,
+                    ulong              paddr,
                     ulong              sz,
                     ulong              flags,
                     fdos_vmm_alloc_t * alloc );
