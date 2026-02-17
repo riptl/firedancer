@@ -4,7 +4,7 @@
 /* Physical memory layout */
 
 #define FDOS_GPADDR_KERN_IMG   0x1000000UL /* kernel image */
-#define FDOS_GPADDR_KERN_META  0x2000000UL /* page table, GDT, TSS, etc */
+#define FDOS_GPADDR_KERN_HEAP  0x2000000UL /* page table, GDT, TSS, etc */
 #define FDOS_GPADDR_KERN_STACK 0x3000000UL /* guest stack */
 #define FDOS_GPADDR_USER_STACK 0x4000000UL /* user stack */
 
@@ -12,10 +12,9 @@
 
 #define FDOS_GVADDR_SVM_LO                     0x0UL
 #define FDOS_GVADDR_SVM_HI             0x100000000UL
+#define FDOS_GVADDR_KERN_HEAP   0xffffc90000000000UL
 #define FDOS_GVADDR_KERN_STACK  0xffffff8000000000UL
-#define FDOS_GVADDR_KERN_TEXT   0xffffffff80000000UL
-#define FDOS_GVADDR_KERN_RODATA 0xffffffff90000000UL
-#define FDOS_GVADDR_KERN_DATA   0xffffffffa0000000UL
+#define FDOS_GVADDR_KERN_IMG    0xffffffff80000000UL
 
 /* Global Descriptor Table */
 

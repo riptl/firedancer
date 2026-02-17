@@ -1,8 +1,10 @@
 /* fdos_kvm.c provides a KVM hypervisor environment for fdos. */
 
 #include "fdos_kvm.h"
+#include "../fdos_vmm.h"
 #include "../x86/fd_x86_disasm.h"
 #include "../kern/fdos_kern_def.h"
+#include "fdos_env.h"
 #include <errno.h>
 #include <sys/ioctl.h> /* ioctl(2) */
 
@@ -18,21 +20,22 @@
 
 static void *
 gvaddr_to_haddr( fdos_env_t const * env,
-                 ulong             gvaddr ) {
-  void * base = NULL;
-  switch( gvaddr>>24 ) {
-  case 3:
-    base = env->wksp_kern_rodata;
-    break;
-  case 4:
-    base = env->wksp_kern_data;
-    break;
-  case 5:
-    base = env->wksp_kern_stack;
-    break;
+                 ulong              gvaddr,
+                 ulong              sz ) {
+  ulong gpaddr0 = fdos_gvaddr_to_gpaddr( gvaddr, sz, env->vmm_alloc );
+  ulong gpaddr1 = gpaddr0 + sz;
+  
+  ulong phys;
+  for( phys=0UL; phys<FDOS_PHYS_MAX; phys++ ) {
+    if( !!( gpaddr0>=env->phys[ phys ].gpaddr0 ) & 
+        !!( gpaddr1<=env->phys[ phys ].gpaddr1 ) ) {
+      break;
+    }
   }
-  if( FD_UNLIKELY( !base ) ) return NULL;
-  return fd_wksp_laddr_fast( base, gvaddr&0xffffffUL );
+  if( FD_UNLIKELY( phys==FDOS_PHYS_MAX ) ) return NULL;
+  
+  ulong off = gpaddr0 - env->phys[ phys ].gpaddr0;
+  return (void *)( env->phys[ phys ].haddr + off );
 }
 
 static void
@@ -53,10 +56,11 @@ hypercall_log( fdos_env_t * kern,
     /* 6 */ TEXT_RED TEXT_BOLD TEXT_UNDERLINE            "ALERT  " TEXT_NORMAL,
     /* 7 */ TEXT_RED TEXT_BOLD TEXT_UNDERLINE TEXT_BLINK "EMERG  " TEXT_NORMAL
   };
-  char const * file = (char const *)gvaddr_to_haddr( kern, file_gvaddr );
-  char const * func = (char const *)gvaddr_to_haddr( kern, func_gvaddr );
-  char const * msg  = (char const *)gvaddr_to_haddr( kern, msg_gvaddr  );
 
+  /* FIXME don't use cstr for translation ... stupid */
+  char const * file = (char const *)gvaddr_to_haddr( kern, file_gvaddr, 1UL );
+  char const * func = (char const *)gvaddr_to_haddr( kern, func_gvaddr, 1UL );
+  char const * msg  = (char const *)gvaddr_to_haddr( kern, msg_gvaddr,  1UL );
 
   struct kvm_sregs sregs;
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_SREGS, &sregs )<0 ) ) {

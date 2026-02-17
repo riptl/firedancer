@@ -49,6 +49,13 @@ fdos_vmm_map_range( ulong *            pml4,
                     ulong              flags,
                     fdos_vmm_alloc_t * alloc );
 
+/* fdos_gvaddr_to_gpaddr does a software page table walk */
+
+ulong
+fdos_gvaddr_to_gpaddr( ulong                    gvaddr,
+                       ulong                    sz,
+                       fdos_vmm_alloc_t const * alloc );
+
 #if FD_HAS_HOSTED
 
 /* fdos_vmm_printf dumps the page table to a file.

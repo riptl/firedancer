@@ -14,24 +14,36 @@ SECTIONS
 
   .text : AT(ADDR(.text) - 0xffffffff80000000) {
     *(.text)
+    . = ALIGN(4K);
   } :CODE
-
-  . = ALIGN(4K);
 
   .rodata : AT(ADDR(.rodata) - 0xffffffff80000000) {
     *(.rodata)
     *(.rodata.*)
+    . = ALIGN(4K);
   } :ROM
-
-  . = ALIGN(4K);
 
   .data : AT(ADDR(.data) - 0xffffffff80000000) {
     *(.data)
+    . = ALIGN(4K);
   } :RAM
 
-  .bss : AT(ADDR(.bss) - 0xffffffff80000000) {
+  .bss (NOLOAD) : AT(ADDR(.bss) - 0xffffffff80000000) {
     *(.bss)
+    . = ALIGN(4K);
+    __bss_end__ = .;
   } :RAM
+
+  /DISCARD/ :
+  {
+    *(.note.GNU-stack)
+    *(.comment)
+    *(.interp)
+    *(.hash)
+    *(.gnu.hash)
+    *(.debug*)
+    *(.got) *(.igot.*)
+  }
 
   .got.plt (INFO) : { *(.got.plt) }
 	ASSERT(SIZEOF(.got.plt) == 0, "Unexpected GOT entries detected!")
@@ -55,13 +67,4 @@ SECTIONS
 		*(.rela.*) *(.rela_*)
 	}
 	ASSERT(SIZEOF(.rela.dyn) == 0, "Unexpected run-time relocations (.rela) detected!")
-
-  /DISCARD/ :
-  {
-    *(.note.GNU-stack)
-    *(.comment)
-    *(.interp)
-    *(.hash)
-    *(.gnu.hash)
-  }
 }

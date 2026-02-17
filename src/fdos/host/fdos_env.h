@@ -2,22 +2,43 @@
 #define HEADER_fd_src_fdos_host_fdos_host_h
 
 #include "../kern/fdos_hypercall.h"
+#include "../fdos_vmm.h"
 #include "../x86/fd_x86_gdt.h"
 #include "../x86/fd_x86_idt.h"
 #include "../x86/fd_x86_tss.h"
 #include "../../util/wksp/fd_wksp.h"
 
+struct fdos_vmo {
+  ulong haddr;
+  ulong gvaddr;
+  ulong gpaddr;
+  ulong sz;
+};
+
+typedef struct fdos_vmo fdos_vmo_t;
+
+#define FDOS_PHYS_MAX 16UL
+
+struct fdos_phys {
+  uint  gpaddr0;
+  uint  gpaddr1;
+  ulong haddr;
+};
+
+typedef struct fdos_phys fdos_phys_t;
+
 struct fdos_env {
-  fd_wksp_t * wksp_kern_meta;
-  fd_wksp_t * wksp_kern_code;
-  fd_wksp_t * wksp_kern_rodata;
-  fd_wksp_t * wksp_kern_data;
-  fd_wksp_t * wksp_kern_stack;
+  fd_wksp_t * wksp_kern_heap;  /* general-purpose heap allocator */
+  fd_wksp_t * wksp_kern_data;  /* .data section */
+  fd_wksp_t * wksp_kern_stack;  
   fd_wksp_t * wksp_user_stack;
 
-  /* Page table */
-  ulong * pml4; /* in meta_wksp */
-  ulong   pml4_gpaddr;
+  /* Physical memory mappings */
+  fdos_phys_t phys[ FDOS_PHYS_MAX ];
+
+  /* Page tables
+     First page is PML4, various other pages follow */
+  fdos_vmm_alloc_t vmm_alloc[1];
 
   /* Stack (kernel, user) */
   ulong   stack_kern_top_gvaddr;
@@ -26,16 +47,10 @@ struct fdos_env {
   ulong   stack_user_sz;
 
   /* Kernel image */
-  uchar * rodata;
-  uchar * text;
-  uchar * data;
-  ulong   rodata_gvaddr;
-  ulong   rodata_sz;
-  ulong   text_gvaddr;
-  ulong   text_sz;
-  ulong   entry_gvaddr;
-  ulong   data_gvaddr;
-  ulong   data_sz;
+  fdos_vmo_t text;
+  fdos_vmo_t rodata;
+  fdos_vmo_t data;
+  ulong      entry_gvaddr;
 
   /* TSS (kernel, user) */
   fd_x86_tss64_t * tss_kern;

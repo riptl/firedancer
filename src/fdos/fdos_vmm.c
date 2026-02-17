@@ -82,8 +82,8 @@ fdos_env_map_pml2( ulong *            pml2,
     ulong * pml1 = fdos_pt_gpaddr_to_haddr( alloc, fd_x86_mmu_paddr( pml2[ pml2e_idx ] ) );
     fdos_env_map_pml1( pml1, vaddr, paddr, sz, flags );
   next:
-    vaddr = fd_ulong_align_up( vaddr+1UL, FD_X86_PML2E_RANGE );
-    paddr = fd_ulong_align_up( paddr+1UL, FD_X86_PML2E_RANGE );
+    paddr += fd_ulong_align_up( vaddr+1UL, FD_X86_PML2E_RANGE ) - vaddr;
+    vaddr  = fd_ulong_align_up( vaddr+1UL, FD_X86_PML2E_RANGE );
   }
 }
 
@@ -114,8 +114,8 @@ fdos_env_map_pml3( ulong *            pml3,
     ulong * pml2 = fdos_pt_gpaddr_to_haddr( alloc, fd_x86_mmu_paddr( pml3[ pml3e_idx ] ) );
     fdos_env_map_pml2( pml2, vaddr, paddr, sz, flags, alloc );
   next:
-    vaddr = fd_ulong_align_up( vaddr+1UL, FD_X86_PML3E_RANGE );
-    paddr = fd_ulong_align_up( paddr+1UL, FD_X86_PML3E_RANGE );
+    paddr += fd_ulong_align_up( vaddr+1UL, FD_X86_PML3E_RANGE ) - vaddr;
+    vaddr  = fd_ulong_align_up( vaddr+1UL, FD_X86_PML3E_RANGE );
   }
 }
 
@@ -149,6 +149,7 @@ fdos_vmm_map_range( ulong *            pml4,
                     ulong              sz,
                     ulong              flags,
                     fdos_vmm_alloc_t * alloc ) {
+  vaddr &= fd_ulong_mask_lsb( 48 );
   ulong       paddr0 = paddr;
   ulong const paddr1 = paddr+sz;
   ulong       vaddr0 = vaddr;
@@ -161,6 +162,111 @@ fdos_vmm_map_range( ulong *            pml4,
   FD_CRIT( paddr0<=paddr1, "invalid argument" );
   FD_CRIT( vaddr0<=vaddr1, "invalid argument" );
   fdos_env_map_pml4( pml4, vaddr0, paddr0, sz, flags, alloc );
+}
+
+static ulong const *
+pml_translate( ulong                    pme,
+               fdos_vmm_alloc_t const * alloc ) {
+  ulong gpaddr = fd_x86_mmu_paddr( pme );
+  if( FD_UNLIKELY( gpaddr < alloc->gpaddr ) ) return NULL;
+  ulong off = gpaddr - alloc->gpaddr;
+  if( FD_UNLIKELY( off >= alloc->max ) ) return NULL;
+  return (ulong const *)( alloc->haddr + off );
+}
+
+/* For now, use a very naive algorithm to translate a virtual address range
+   FIXME could be a lot better
+   FIXME this ignores permission bits at page maps */
+
+struct resolved_page {
+  ulong paddr;
+  ulong sz;
+  ulong pme; /* contains flags */
+};
+
+typedef struct resolved_page resolved_page_t;
+
+static resolved_page_t *
+resolve_page( resolved_page_t *        out,
+              ulong                    gvaddr,
+              fdos_vmm_alloc_t const * alloc ) {
+              
+  ulong pml4e_idx = fd_ulong_extract( gvaddr, 39, 47 );
+  ulong pml3e_idx = fd_ulong_extract( gvaddr, 30, 38 );
+  ulong pml2e_idx = fd_ulong_extract( gvaddr, 21, 29 );
+  ulong pml1e_idx = fd_ulong_extract( gvaddr, 12, 20 );
+
+  ulong const * pml4  = (ulong const *)alloc->haddr;
+  ulong         pml4e = pml4[ pml4e_idx ];
+  if( FD_UNLIKELY( !( pml4e & FD_X86_PT_P ) ) ) return NULL;
+
+  ulong const * pml3 = pml_translate( pml4e, alloc );
+  if( FD_UNLIKELY( !pml3 ) ) return NULL;
+
+  ulong pml3e = pml3[ pml3e_idx ];
+  if( FD_UNLIKELY( !( pml3e & FD_X86_PT_P ) ) ) return NULL;
+  if( pml3e & FD_X86_PT_PS ) {
+    ulong off = gvaddr & fd_ulong_mask_lsb( 30 );
+    *out = (resolved_page_t) {
+      .paddr = fd_x86_mmu_paddr( pml3e ) + off,
+      .sz    = FD_X86_PML3E_RANGE - off,
+      .pme   = pml3e
+    };
+    return out;
+  }
+
+  ulong const * pml2 = pml_translate( pml3e, alloc );
+  if( FD_UNLIKELY( !pml2 ) ) return NULL;
+
+  ulong pml2e = pml2[ pml2e_idx ];
+  if( FD_UNLIKELY( !( pml2e & FD_X86_PT_P ) ) ) return NULL;
+  if( pml2e & FD_X86_PT_PS ) {
+    ulong off = gvaddr & fd_ulong_mask_lsb( 21 );
+    *out = (resolved_page_t) {
+      .paddr = fd_x86_mmu_paddr( pml2e ) + off,
+      .sz    = FD_X86_PML2E_RANGE - off,
+      .pme   = pml2e
+    };
+    return out;
+  }
+
+  ulong const * pml1 = pml_translate( pml2e, alloc );
+  if( FD_UNLIKELY( !pml1 ) ) return NULL;
+
+  ulong pml1e = pml1[ pml1e_idx ];
+  if( FD_UNLIKELY( !( pml1e & FD_X86_PT_P ) ) ) return NULL;
+  ulong off = gvaddr & fd_ulong_mask_lsb( 12 );
+  *out = (resolved_page_t) {
+    .paddr = fd_x86_mmu_paddr( pml1e ) + off,
+    .sz    = FD_X86_PML1E_RANGE - off,
+    .pme   = pml1e
+  };
+  return out;
+}
+
+ulong
+fdos_gvaddr_to_gpaddr( ulong                    gvaddr,
+                       ulong                    sz,
+                       fdos_vmm_alloc_t const * alloc ) {
+  ulong page_flag_mask =
+      ( FD_X86_PT_RW | FD_X86_PT_US | FD_X86_PT_G | FD_X86_PT_XD );
+  ulong vaddr1 = gvaddr+sz;
+
+  resolved_page_t page[1];
+  if( FD_UNLIKELY( !resolve_page( page, gvaddr, alloc ) ) ) return 0UL;
+  ulong flags      = page->pme & page_flag_mask;
+  ulong paddr0     = page->paddr;
+  ulong paddr_next = page->paddr + page->sz;
+  ulong vaddr_next = gvaddr + page->sz;
+  for(;;) {
+    if( vaddr_next >= vaddr1 ) break;
+    if( FD_UNLIKELY( !resolve_page( page, vaddr_next, alloc ) ) ) return 0UL;
+    if( ( page->pme & page_flag_mask ) != flags ) return 0UL;
+    if( FD_UNLIKELY( page->paddr != paddr_next ) ) return 0UL;
+    paddr_next += page->sz;
+    vaddr_next += page->sz;
+  }
+  return paddr0;
 }
 
 #if FD_HAS_HOSTED
@@ -232,16 +338,6 @@ pml_last_idx( ulong const * pml ) {
     if( pml[i] & FD_X86_PT_P ) break;
   }
   return i;
-}
-
-static ulong const *
-pml_translate( ulong                    pme,
-               fdos_vmm_alloc_t const * alloc ) {
-  ulong gpaddr = fd_x86_mmu_paddr( pme );
-  if( FD_UNLIKELY( gpaddr < alloc->gpaddr ) ) return NULL;
-  ulong off = gpaddr - alloc->gpaddr;
-  if( FD_UNLIKELY( off >= alloc->max ) ) return NULL;
-  return (ulong const *)( alloc->haddr + off );
 }
 
 static int

@@ -1,35 +1,17 @@
+#include "fdos_vmm.h"
 #include "host/fdos_kvm.h"
 #include "kern/fdos_kern_def.h"
 #include "x86/fd_x86_msr.h"
 #include "../util/fd_util.h"
 
 #include <errno.h>
+#include <stdio.h> /* stderr, fflush */
 #include <fcntl.h> /* open(2) */
 #include <unistd.h> /* close(2) */
 #include <sys/ioctl.h> /* ioctl(2) */
 #include <sys/mman.h> /* mmap(2) */
 
-FD_IMPORT_BINARY( fdos_kern_img, "build/fdos/kern/x86_64/bin/fdos_kern.elf" );
-
-static void
-wksp_map_to_guest_phys( int         vm_fd,
-                        uint        slot,
-                        fd_wksp_t * wksp,
-                        ulong       gpaddr ) {
-  fd_shmem_join_info_t info[1];
-  FD_TEST( 0==fd_shmem_join_query_by_join( wksp, info ) );
-
-  struct kvm_userspace_memory_region region = {
-    .slot            = slot,
-    .guest_phys_addr = gpaddr,
-    .memory_size     = info->page_sz * info->page_cnt,
-    .userspace_addr  = (ulong)wksp
-  };
-  if( FD_UNLIKELY( ioctl( vm_fd, KVM_SET_USER_MEMORY_REGION, &region )<0 ) ) {
-    FD_LOG_ERR(( "KVM_SET_USER_MEMORY_REGION(slot=%u,guest_phys_addr=%#llx,memory_size=%#llx,userspace_addr=%p) failed (%i-%s)",
-                 region.slot, region.guest_phys_addr, region.memory_size, (void *)region.userspace_addr, errno, fd_io_strerror( errno ) ));
-  }
-}
+FD_IMPORT( fdos_kern_img, "build/fdos/kern/x86_64/bin/fdos_kern.elf", uchar, 12, "" );
 
 int
 main( int     argc,
@@ -65,16 +47,34 @@ main( int     argc,
   fdos_env_t env[1];
   FD_TEST( fdos_env_create( env, fdos_kern_img, fdos_kern_img_sz ) );
 
-  /* Interrupt handler */
+  /* Print page table */
+  ulong const * pml4 = (ulong const *)env->vmm_alloc->haddr;
+  FD_LOG_NOTICE(( "page table:\n" ));
+  fdos_vmm_printf( pml4, stderr, env->vmm_alloc );
+  fputs( "\n", stderr );
+  fflush( stderr );
+
+  /* Print physical memory map */
+  FD_LOG_NOTICE(( "physical memory map:\n" ));
 
   /* Map memory regions into guest physical memory */
 
-  wksp_map_to_guest_phys( vm_fd, 0U, env->wksp_kern_meta,   FDOS_GPADDR_KERN_META   );
-  wksp_map_to_guest_phys( vm_fd, 1U, env->wksp_kern_code,   FDOS_GPADDR_KERN_CODE   );
-  wksp_map_to_guest_phys( vm_fd, 2U, env->wksp_kern_rodata, FDOS_GPADDR_KERN_RODATA );
-  wksp_map_to_guest_phys( vm_fd, 3U, env->wksp_kern_data,   FDOS_GPADDR_KERN_DATA   );
-  wksp_map_to_guest_phys( vm_fd, 4U, env->wksp_kern_stack,  FDOS_GPADDR_KERN_STACK  );
-  wksp_map_to_guest_phys( vm_fd, 5U, env->wksp_user_stack,  FDOS_GPADDR_USER_STACK  );
+  for( ulong i=0UL; i<FDOS_PHYS_MAX; i++ ) {
+    if( !env->phys[ i ].haddr ) continue;
+    struct kvm_userspace_memory_region region = {
+      .slot            = (uint)i,
+      .guest_phys_addr = env->phys[ i ].gpaddr0,
+      .memory_size     = env->phys[ i ].gpaddr1 - env->phys[ i ].gpaddr0,
+      .userspace_addr  = env->phys[ i ].haddr
+    };
+    fprintf( stderr, "  slot=%u guest_phys_addr=%#llx memory_size=%#llx userspace_addr=%p\n",
+             region.slot, region.guest_phys_addr, region.memory_size, (void *)region.userspace_addr );
+    if( FD_UNLIKELY( ioctl( vm_fd, KVM_SET_USER_MEMORY_REGION, &region )<0 ) ) {
+      FD_LOG_ERR(( "KVM_SET_USER_MEMORY_REGION(slot=%u,guest_phys_addr=%#llx,memory_size=%#llx,userspace_addr=%p) failed (%i-%s)",
+                  region.slot, region.guest_phys_addr, region.memory_size, (void *)region.userspace_addr, errno, fd_io_strerror( errno ) ));
+    }
+  }
+  fputs( "\n", stderr );
 
   struct kvm_sregs sregs[1];
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_SREGS, sregs )<0 ) ) {
@@ -136,9 +136,10 @@ main( int     argc,
 
   /* Enable long mode */
 
-  sregs->cr3 = (ulong)env->pml4_gpaddr;
+  sregs->cr3 = (ulong)env->vmm_alloc->gpaddr;
   sregs->cr4 =
       FD_X86_CR4_PAE |
+      FD_X86_CR4_PGE |
       FD_X86_CR4_OSFXSR;
 
   sregs->cr0 =
@@ -185,6 +186,8 @@ main( int     argc,
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_REGS, &regs )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_REGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
+  FD_LOG_NOTICE(( "Initial CPU state: rip=%#llx rflags=%#llx rsp=%#llx rbp=%#llx",
+                  regs.rip, regs.rflags, regs.rsp, regs.rbp ));
 
   /* Enable guest debugging */
 
@@ -213,6 +216,7 @@ main( int     argc,
   /* Run */
 
   for(;;) {
+    FD_LOG_NOTICE(( "KVM_RUN" ));
     if( flag_trace ) {
       struct kvm_guest_debug debug = {0};
       debug.control = KVM_GUESTDBG_ENABLE | KVM_GUESTDBG_SINGLESTEP;

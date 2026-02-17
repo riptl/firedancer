@@ -42,6 +42,11 @@ test_vmm_map( void ) {
       FD_X86_PT_US | FD_X86_PT_G,
       alloc
   );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080606000UL, 0x1000, alloc )==0x202000UL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080606400UL,  0x100, alloc )==0x202400UL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080606fffUL,      1, alloc )==0x202fffUL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080606fffUL,      2, alloc )==       0UL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080607000UL,      0, alloc )==       0UL );
   assert_vmm_printf_eq( pml4, alloc,
       "PML4\n"
       "|               000000000000..008000000000  --\n"
@@ -64,6 +69,12 @@ test_vmm_map( void ) {
       FD_X86_PT_RW | FD_X86_PT_US | FD_X86_PT_G | FD_X86_PT_XD,
       alloc
   );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080604000UL, 0x1000, alloc )==0x200000UL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080604400UL,  0x100, alloc )==0x200400UL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080604fffUL,      1, alloc )==0x200fffUL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080604fffUL,      2, alloc )==0x200fffUL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080604000UL, 0x2000, alloc )==0x200000UL );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x8080604000UL, 0x2001, alloc )==       0UL );
   assert_vmm_printf_eq( pml4, alloc,
       "PML4\n"
       "|               000000000000..008000000000  --\n"
@@ -118,11 +129,12 @@ test_vmm_map( void ) {
   fdos_vmm_map_range(
       pml4,
       0x100c0807000UL,
-      0x100000UL,
+      0x10000000UL,
       3*FD_X86_PML3E_RANGE,
       FD_X86_PT_RW | FD_X86_PT_US | FD_X86_PT_XD,
       alloc
   );
+  FD_TEST( fdos_gvaddr_to_gpaddr( 0x100c0807000UL, 3*FD_X86_PML3E_RANGE, alloc )==0x10000000UL );
 }
 
 int

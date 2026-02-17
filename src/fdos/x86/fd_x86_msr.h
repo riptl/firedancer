@@ -14,6 +14,7 @@
 #define FD_X86_CR0_PG (1U<<31)
 
 #define FD_X86_CR4_PAE    (1U<<5)
+#define FD_X86_CR4_PGE    (1U<<7)
 #define FD_X86_CR4_OSFXSR (1U<<9)
 
 #define FD_X86_EFER_SCE (1U<< 0)
