@@ -123,7 +123,7 @@ trace_rip( fdos_env_t *     env,
   if( !dis ) dis = "                                        ";
 # endif
 
-  FD_LOG_INFO(( "\033[2mrip=%#lx\033[0m %s \033[2mrsp=%8llx rax=%16llx rbx=%16llx rcx=%16llx rdx=%16llx rsi=%16llx rdi=%16llx\033[0m",
+  FD_LOG_INFO(( "\033[2mrip=%016lx\033[0m %s \033[2mrsp=%16llx rax=%16llx rbx=%16llx rcx=%16llx rdx=%16llx rsi=%16llx rdi=%16llx\033[0m",
                 rip, dis,
                 regs.rsp, regs.rax, regs.rbx, regs.rcx, regs.rdx, regs.rsi, regs.rdi ));
 }

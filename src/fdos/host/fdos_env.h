@@ -30,7 +30,7 @@ typedef struct fdos_phys fdos_phys_t;
 struct fdos_env {
   fd_wksp_t * wksp_kern_heap;  /* general-purpose heap allocator */
   fd_wksp_t * wksp_kern_data;  /* .data section */
-  fd_wksp_t * wksp_kern_stack;  
+  fd_wksp_t * wksp_kern_stack;
   fd_wksp_t * wksp_user_stack;
 
   /* Physical memory mappings */
@@ -59,14 +59,14 @@ struct fdos_env {
   ulong            tss_user_gpaddr;
 
   /* GDT */
-  ulong          gdt_gpaddr;
+  ulong          gdt_gvaddr;
   fd_x86_gdt_t * gdt;
 
   /* Default interrupt handler */
   ulong int_handler_gvaddr; /* 256 bytes, 1 byte for each interrupt descriptor */
 
   /* IDT */
-  ulong               idt_gpaddr;
+  ulong               idt_gvaddr;
   fd_x86_idt_gate_t * idt;
 
   /* Startup args */

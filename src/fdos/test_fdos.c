@@ -67,8 +67,8 @@ main( int     argc,
       .memory_size     = env->phys[ i ].gpaddr1 - env->phys[ i ].gpaddr0,
       .userspace_addr  = env->phys[ i ].haddr
     };
-    fprintf( stderr, "  slot=%u guest_phys_addr=%#llx memory_size=%#llx userspace_addr=%p\n",
-             region.slot, region.guest_phys_addr, region.memory_size, (void *)region.userspace_addr );
+    fprintf( stderr, "  slot=%u phys=%#llx..%#llx userspace_addr=%p\n",
+             region.slot, region.guest_phys_addr, region.guest_phys_addr + region.memory_size, (void *)region.userspace_addr );
     if( FD_UNLIKELY( ioctl( vm_fd, KVM_SET_USER_MEMORY_REGION, &region )<0 ) ) {
       FD_LOG_ERR(( "KVM_SET_USER_MEMORY_REGION(slot=%u,guest_phys_addr=%#llx,memory_size=%#llx,userspace_addr=%p) failed (%i-%s)",
                   region.slot, region.guest_phys_addr, region.memory_size, (void *)region.userspace_addr, errno, fd_io_strerror( errno ) ));
@@ -81,13 +81,15 @@ main( int     argc,
     FD_LOG_ERR(( "KVM_GET_SREGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
 
-  sregs->gdt.base  = env->gdt_gpaddr;
+  sregs->gdt.base  = env->gdt_gvaddr;
   sregs->gdt.limit = (FDOS_GDT_CNT * sizeof(ulong)) - 1UL;
   memset( sregs->gdt.padding, 0, sizeof(sregs->gdt.padding) );
 
-  sregs->idt.base  = env->idt_gpaddr;
+  sregs->idt.base  = env->idt_gvaddr;
   sregs->idt.limit = (256 * sizeof(fd_x86_idt_gate_t)) - 1UL;
 
+  FD_LOG_NOTICE(( "gdt base=%#llx limit=%#x\nidt base=%#llx limit=%#x\n",
+                  sregs->gdt.base, sregs->gdt.limit, sregs->idt.base, sregs->idt.limit ));
   /* Segment descriptors */
 
   struct kvm_segment cs = {
@@ -217,7 +219,6 @@ main( int     argc,
   /* Run */
 
   for(;;) {
-    FD_LOG_NOTICE(( "KVM_RUN" ));
     if( flag_trace ) {
       struct kvm_guest_debug debug = {0};
       debug.control = KVM_GUESTDBG_ENABLE | KVM_GUESTDBG_SINGLESTEP;

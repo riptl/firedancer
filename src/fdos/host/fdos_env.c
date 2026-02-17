@@ -43,7 +43,7 @@ fdos_env_gdt( fdos_env_t * env ) {
 
   ulong gdt_gaddr = fd_wksp_alloc( env->wksp_kern_heap, 16UL, FDOS_GDT_CNT*sizeof(fd_x86_gdt_t), 1UL );
   FD_TEST( gdt_gaddr );
-  env->gdt_gpaddr = FDOS_GPADDR_KERN_HEAP + gdt_gaddr;
+  env->gdt_gvaddr = FDOS_GVADDR_KERN_HEAP + gdt_gaddr;
   fd_x86_gdt_t * gdt = fd_wksp_laddr_fast( env->wksp_kern_heap, gdt_gaddr );
   gdt[ FDOS_GDT_IDX_NULL ] = (fd_x86_gdt_t) {0};
   gdt[ FDOS_GDT_IDX_KERN_CODE ] = (fd_x86_gdt_t) {
@@ -134,14 +134,30 @@ fdos_env_gdt( fdos_env_t * env ) {
 
 static void
 fdos_env_idt( fdos_env_t * env ) {
+  /* Interrupt handler */
+  ulong   interrupt_handler_gvaddr = env->text.gvaddr;
+  env->int_handler_gvaddr = interrupt_handler_gvaddr;
+
   /* IDT */
   ulong               idt_gaddr  = fd_wksp_alloc( env->wksp_kern_heap, 16UL, 256*sizeof(fd_x86_idt_gate_t), 1UL );
   FD_TEST( idt_gaddr );
-  ulong               idt_gpaddr = FDOS_GPADDR_KERN_HEAP + idt_gaddr;
+  ulong               idt_gvaddr = FDOS_GVADDR_KERN_HEAP + idt_gaddr;
   fd_x86_idt_gate_t * idt        = fd_wksp_alloc_laddr( env->wksp_kern_heap, 16UL, 256*sizeof(fd_x86_idt_gate_t), 1UL );
   FD_TEST( idt );
   memset( idt, 0, 256*sizeof(fd_x86_idt_gate_t) );
-  env->idt_gpaddr = idt_gpaddr;
+  for( ulong i=0UL; i<256UL; i++ ) {
+    ulong gvaddr = env->text.gvaddr;
+    idt[ i ] = (fd_x86_idt_gate_t) {
+      .offset_low   = (ushort)( gvaddr & 0xffff ),
+      .selector     = 0x08, /* ring 0, GDT, entry 1 (code) */
+      .ist          = 0,
+      .type_attr    = 0x8e, /* interrupt gate, ring 0, present */
+      .offset_mid   = (ushort)((gvaddr >> 16) & 0xffff),
+      .offset_high  = (uint)((gvaddr >> 32) & 0xffffffff),
+      .reserved     = 0
+    };
+  }
+  env->idt_gvaddr = idt_gvaddr;
   env->idt        = idt;
 }
 
@@ -154,14 +170,14 @@ fdos_env_shared( fdos_env_t * env ) {
   /* Hypercall shared memory area */
   ulong hyper_args_gaddr = fd_wksp_alloc( env->wksp_kern_heap, alignof(fd_hypercall_args_t), sizeof(fd_hypercall_args_t), 1UL );
   FD_TEST( hyper_args_gaddr );
-  env->hyper_args_gvaddr = FDOS_GPADDR_KERN_HEAP + hyper_args_gaddr;
+  env->hyper_args_gvaddr = FDOS_GVADDR_KERN_HEAP + hyper_args_gaddr;
   env->hyper_args        = fd_wksp_laddr_fast( env->wksp_kern_heap, hyper_args_gaddr );
   memset( env->hyper_args, 0, sizeof(fd_hypercall_args_t) );
 
   /* Entry args */
   ulong entry_args_gaddr = fd_wksp_alloc( env->wksp_kern_heap, alignof(fdos_kern_args_t), sizeof(fdos_kern_args_t), 1UL );
   FD_TEST( entry_args_gaddr );
-  env->entry_args_gvaddr = FDOS_GPADDR_KERN_HEAP + entry_args_gaddr;
+  env->entry_args_gvaddr = FDOS_GVADDR_KERN_HEAP + entry_args_gaddr;
   env->entry_args        = fd_wksp_laddr_fast( env->wksp_kern_heap, entry_args_gaddr );
   memset( env->entry_args, 0, sizeof(fdos_kern_args_t) );
   fdos_kern_args_t * entry_args = env->entry_args;
@@ -234,7 +250,7 @@ fdos_env_create( fdos_env_t *  env,
     .wksp_kern_stack  = wksp_kern_stack,
     .wksp_user_stack  = wksp_user_stack,
 
-    .stack_kern_top_gvaddr = FDOS_GVADDR_KERN_STACK + 2*FD_SHMEM_HUGE_PAGE_SZ - 128,
+    .stack_kern_top_gvaddr = FDOS_GVADDR_KERN_STACK + 2*FD_SHMEM_HUGE_PAGE_SZ - 4096,
     .stack_kern_sz         = 2*FD_SHMEM_HUGE_PAGE_SZ,
 
     // .stack_user_top_gvaddr = FDOS_GVADDR_USER_STACK + stack_user_gaddr,

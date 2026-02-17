@@ -39,7 +39,7 @@ fdos_kern_img_off_load( fdos_kern_img_off_t * img_off,
   FD_TEST( img_off->phdr_rom .p_type  == FD_ELF_PT_LOAD );
   FD_TEST( img_off->phdr_code.p_type  == FD_ELF_PT_LOAD );
   FD_TEST( img_off->phdr_ram .p_type  == FD_ELF_PT_LOAD );
-  
+
   FD_TEST( img_off->phdr_rom .p_vaddr >= FDOS_GVADDR_KERN_IMG );
   FD_TEST( img_off->phdr_code.p_vaddr >= FDOS_GVADDR_KERN_IMG );
   FD_TEST( img_off->phdr_ram .p_vaddr >= FDOS_GVADDR_KERN_IMG );
@@ -52,7 +52,7 @@ fdos_kern_img_off_load( fdos_kern_img_off_t * img_off,
   FD_TEST( img_off->phdr_code.p_filesz == img_off->phdr_code.p_memsz );
   FD_TEST( img_off->phdr_ram .p_filesz <= img_off->phdr_ram .p_memsz );
 
-  FD_TEST( fd_ulong_is_aligned( img_off->phdr_rom .p_offset, FD_SHMEM_NORMAL_PAGE_SZ ) );  
+  FD_TEST( fd_ulong_is_aligned( img_off->phdr_rom .p_offset, FD_SHMEM_NORMAL_PAGE_SZ ) );
   FD_TEST( fd_ulong_is_aligned( img_off->phdr_code.p_offset, FD_SHMEM_NORMAL_PAGE_SZ ) );
   FD_TEST( fd_ulong_is_aligned( img_off->phdr_ram .p_offset, FD_SHMEM_NORMAL_PAGE_SZ ) );
 
@@ -81,7 +81,7 @@ fdos_env_img_load( fdos_env_t *  env,
                    uchar const * bin_ro,
                    ulong         bin_sz ) {
   FD_TEST( fd_ulong_is_aligned( (ulong)bin_ro, FD_SHMEM_NORMAL_PAGE_SZ ) );
-  
+
   fdos_kern_img_off_t img_off[1];
   FD_TEST( fdos_kern_img_off_load( img_off, bin_ro, bin_sz ) );
 
@@ -115,7 +115,7 @@ fdos_env_img_load( fdos_env_t *  env,
   };
 
   /* Reserve space for page tables */
-  ulong pm_max   = 32UL; 
+  ulong pm_max   = 32UL;
   ulong pm_gaddr = fd_wksp_alloc( env->wksp_kern_heap, FD_X86_PM_SZ, pm_max*FD_X86_PM_SZ, 1UL );
   FD_TEST( pm_gaddr );
   fdos_vmm_alloc_t * vmm_alloc = fdos_vmm_alloc_init(
