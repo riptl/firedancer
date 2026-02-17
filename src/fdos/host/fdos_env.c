@@ -9,64 +9,7 @@
 
 #include "fdos_env.h"
 #include "../kern/fdos_kern_def.h"
-#include "../x86/fd_x86_mmu.h"
-
-/* fdos_env_map_range sets up an identity mapping between physical and
-   virtual ranges [addr,addr+sz).  addr and sz must be 4K aligned.
-
-   FIXME Defend against host corruption from an invalid guest kernel */
-
-static void
-fdos_env_map_range( ulong *     pml4,
-                    fd_wksp_t * wksp_kern_meta,
-                    ulong       addr,
-                    ulong       sz,
-                    int         user ) {
-  ulong us = user ? 0x4UL : 0UL;
-
-  ulong       addr0 = addr;
-  ulong const addr1 = addr+sz;
-  FD_LOG_INFO(( "Creating identity mapping for range [%#lx,%#lx)", addr0, addr1 ));
-  FD_CRIT( fd_ulong_is_aligned( addr0, FD_SHMEM_HUGE_PAGE_SZ ), "invalid argument" );
-  FD_CRIT( fd_ulong_is_aligned( addr1, FD_SHMEM_HUGE_PAGE_SZ ), "invalid argument" );
-  FD_CRIT( addr0<=addr1, "invalid argument" );
-
-  while( addr0<addr1 ) { /* each PML4E */
-    ulong pml4e_base = fd_ulong_align_dn( addr0, FD_X86_PML4E_RANGE );
-    ulong pml4e_idx  = fd_ulong_extract( addr0, 39, 47 );
-    if( !pml4[ pml4e_idx ] ) {
-      FD_LOG_DEBUG(( "Creating PDPT at PML4E[%lu] spanning [%#lx,%#lx)", pml4e_idx, pml4e_base, pml4e_base+FD_X86_PML4E_RANGE ));
-      ulong table_gaddr = fd_wksp_alloc( wksp_kern_meta, FD_SHMEM_NORMAL_PAGE_SZ, FD_SHMEM_NORMAL_PAGE_SZ, 1UL );
-      FD_TEST( table_gaddr );
-      ulong table_gpaddr = FDOS_GPADDR_KERN_META + table_gaddr;
-      pml4[ pml4e_idx ] = table_gpaddr | 0x7UL;
-    }
-    ulong * pdpt = (ulong *)fd_wksp_laddr_fast( wksp_kern_meta, (pml4[ pml4e_idx ] & ~0xfffUL)-FDOS_GPADDR_KERN_META );
-
-    while( addr0<addr1 ) { /* each PDPTE */
-      ulong pdpte_base = fd_ulong_align_dn( addr0, FD_X86_PDPTE_RANGE );
-      ulong pdpte_idx  = fd_ulong_extract( addr0, 30, 38 );
-      if( !pdpt[ pdpte_idx ] ) {
-        FD_LOG_DEBUG(( "Creating PD at PDPTE[%lu,%lu] spanning [%#lx,%#lx)", pml4e_idx, pdpte_idx, pdpte_base, pdpte_base+FD_X86_PDPTE_RANGE ));
-        ulong table_gaddr = fd_wksp_alloc( wksp_kern_meta, FD_SHMEM_NORMAL_PAGE_SZ, FD_SHMEM_NORMAL_PAGE_SZ, 1UL );
-        FD_TEST( table_gaddr );
-        ulong table_gpaddr = FDOS_GPADDR_KERN_META + table_gaddr;
-        pdpt[ pdpte_idx ] = table_gpaddr | 0x7UL;
-      }
-      ulong * pd = (ulong *)fd_wksp_laddr_fast( wksp_kern_meta, (pdpt[ pdpte_idx ] & ~0xfffUL)-FDOS_GPADDR_KERN_META );
-
-      while( addr0<addr1 ) { /* each PDE */
-        /* Create huge page */
-        ulong pde_idx = fd_ulong_extract( addr0, 21, 29 );
-        FD_LOG_DEBUG(( "Creating huge page at PDE[%lu,%lu,%lu] spanning [%#lx,%#lx)", pml4e_idx, pdpte_idx, pde_idx, addr0, addr0+FD_X86_PDE_RANGE ));
-        pd[ pde_idx ] = addr0 | 0x83UL | us;
-        addr0 += FD_X86_PDE_RANGE;
-        if( FD_UNLIKELY( !fd_ulong_extract( addr0, 21, 29 ) ) ) break;
-      }
-      if( FD_UNLIKELY( !fd_ulong_extract( addr0, 30, 38 ) ) ) break;
-    }
-  }
-}
+#include "../fdos_vmm.h"
 
 /* fdos_env_tss sets up a dummy Task State Segment */
 
@@ -279,12 +222,9 @@ fdos_env_create( fdos_env_t *  env,
   memset( pml4, 0, FD_SHMEM_NORMAL_PAGE_SZ );
 
   /* Create page table */
-  fdos_env_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_KERN_META,   2UL*FD_SHMEM_HUGE_PAGE_SZ, 0 );
-  fdos_env_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_KERN_CODE,   2UL*FD_SHMEM_HUGE_PAGE_SZ, 1 );
-  fdos_env_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_KERN_RODATA, 2UL*FD_SHMEM_HUGE_PAGE_SZ, 1 );
-  fdos_env_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_KERN_DATA,   2UL*FD_SHMEM_HUGE_PAGE_SZ, 1 );
-  fdos_env_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_KERN_STACK,  2UL*FD_SHMEM_HUGE_PAGE_SZ, 0 );
-  fdos_env_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_USER_STACK,  2UL*FD_SHMEM_HUGE_PAGE_SZ, 1 );
+  fdos_vmm_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_KERN_META,   2UL*FD_SHMEM_HUGE_PAGE_SZ, 0 );
+  fdos_vmm_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_KERN_STACK,  2UL*FD_SHMEM_HUGE_PAGE_SZ, 0 );
+  fdos_vmm_map_range( pml4, wksp_kern_meta, FDOS_GPADDR_USER_STACK,  2UL*FD_SHMEM_HUGE_PAGE_SZ, 1 );
 
   /* Guest kernel stack */
   ulong stack_kern_gaddr  = fd_wksp_alloc( wksp_kern_stack, 16UL, 2*FD_SHMEM_HUGE_PAGE_SZ-FD_SHMEM_NORMAL_PAGE_SZ, 1UL );

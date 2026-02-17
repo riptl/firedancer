@@ -1,17 +1,21 @@
 #ifndef HEADER_fd_src_fdos_kern_fdos_kern_def_h
 #define HEADER_fd_src_fdos_kern_fdos_kern_def_h
 
-/* Guest physical base addresses
-   These are identity-mapped into the ring 0 virtual address space
+/* Physical memory layout */
 
-   FIXME move these above the low 4 GiB (low 4 GiB needs to be reserved for user) */
+#define FDOS_GPADDR_KERN_IMG   0x1000000UL /* kernel image */
+#define FDOS_GPADDR_KERN_META  0x2000000UL /* page table, GDT, TSS, etc */
+#define FDOS_GPADDR_KERN_STACK 0x3000000UL /* guest stack */
+#define FDOS_GPADDR_USER_STACK 0x4000000UL /* user stack */
 
-#define FDOS_GPADDR_KERN_META   0x1000000UL /* page table, GDT, TSS, etc */
-#define FDOS_GPADDR_KERN_CODE   0x2000000UL /* guest kern code */
-#define FDOS_GPADDR_KERN_RODATA 0x3000000UL /* guest kern rodata */
-#define FDOS_GPADDR_KERN_DATA   0x4000000UL /* guest kern data */
-#define FDOS_GPADDR_KERN_STACK  0x5000000UL /* guest stack */
-#define FDOS_GPADDR_USER_STACK  0x6000000UL /* user stack */
+/* Virtual memory layout */
+
+#define FDOS_GVADDR_SVM_LO                     0x0UL
+#define FDOS_GVADDR_SVM_HI             0x100000000UL
+#define FDOS_GVADDR_KERN_STACK  0xffffff8000000000UL
+#define FDOS_GVADDR_KERN_TEXT   0xffffffff80000000UL
+#define FDOS_GVADDR_KERN_RODATA 0xffffffff90000000UL
+#define FDOS_GVADDR_KERN_DATA   0xffffffffa0000000UL
 
 /* Global Descriptor Table */
 

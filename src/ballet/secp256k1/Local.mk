@@ -1,3 +1,4 @@
+ifdef FD_HAS_HOSTED
 ifdef FD_HAS_SECP256K1
 
 $(call add-hdrs,fd_secp256k1.h)
@@ -11,4 +12,5 @@ else
 
 $(warning secp256k1 disabled due to lack of libsecp256k1)
 
+endif
 endif
