@@ -20,7 +20,7 @@
 #define FD_X86_EFER_SCE (1U<< 0)
 #define FD_X86_EFER_LME (1U<< 8)
 #define FD_X86_EFER_LMA (1U<<10)
-#define FD_X86_EFER_NX  (1U<<11)
+#define FD_X86_EFER_NXE (1U<<11)
 
 #define FD_X86_MSR_STAR  0xc0000081
 #define FD_X86_MSR_LSTAR 0xc0000082

@@ -24,16 +24,16 @@ gvaddr_to_haddr( fdos_env_t const * env,
                  ulong              sz ) {
   ulong gpaddr0 = fdos_gvaddr_to_gpaddr( gvaddr, sz, env->vmm_alloc );
   ulong gpaddr1 = gpaddr0 + sz;
-  
+
   ulong phys;
   for( phys=0UL; phys<FDOS_PHYS_MAX; phys++ ) {
-    if( !!( gpaddr0>=env->phys[ phys ].gpaddr0 ) & 
+    if( !!( gpaddr0>=env->phys[ phys ].gpaddr0 ) &
         !!( gpaddr1<=env->phys[ phys ].gpaddr1 ) ) {
       break;
     }
   }
   if( FD_UNLIKELY( phys==FDOS_PHYS_MAX ) ) return NULL;
-  
+
   ulong off = gpaddr0 - env->phys[ phys ].gpaddr0;
   return (void *)( env->phys[ phys ].haddr + off );
 }
@@ -113,7 +113,13 @@ trace_rip( fdos_env_t *     env,
   char const * dis = "";
 # if FD_HAS_LIBLLVM
   char dis_buf[ FD_X86_DISASM_MAX ];
-  dis = fd_x86_disasm( dis_buf, rip, env->text, env->text_sz, FDOS_GPADDR_KERN_CODE+0x1000 );
+  dis = fd_x86_disasm(
+      dis_buf,
+      rip,
+      (uchar const *)env->text.haddr,
+      env->text.sz,
+      env->text.gvaddr
+  );
   if( !dis ) dis = "                                        ";
 # endif
 
@@ -148,6 +154,7 @@ fdos_kvm_run( fdos_env_t *     kern,
   case KVM_EXIT_FAIL_ENTRY:
     FD_LOG_ERR(( "KVM guest failed to enter (hardware_entry_failure_reason=%#llx)", kvm_run->fail_entry.hardware_entry_failure_reason ));
   case KVM_EXIT_SHUTDOWN:
+    trace_rip( kern, kvm_run, vcpu_fd, 0UL );
     FD_LOG_WARNING(( "KVM guest shut down (hardware_exit_reason=%#llx)", kvm_run->hw.hardware_exit_reason ));
     return 1;
   case KVM_EXIT_INTERNAL_ERROR:

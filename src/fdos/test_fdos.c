@@ -49,7 +49,7 @@ main( int     argc,
 
   /* Print page table */
   ulong const * pml4 = (ulong const *)env->vmm_alloc->haddr;
-  FD_LOG_NOTICE(( "page table:\n" ));
+  FD_LOG_NOTICE(( "page table (at gpaddr=%#lx):\n", env->vmm_alloc->gpaddr ));
   fdos_vmm_printf( pml4, stderr, env->vmm_alloc );
   fputs( "\n", stderr );
   fflush( stderr );
@@ -154,7 +154,8 @@ main( int     argc,
   sregs->efer =
       FD_X86_EFER_SCE |
       FD_X86_EFER_LME |
-      FD_X86_EFER_LMA;
+      FD_X86_EFER_LMA |
+      FD_X86_EFER_NXE;
 
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_SREGS, sregs )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_SREGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));

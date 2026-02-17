@@ -193,7 +193,7 @@ phys_map_range( fdos_env_t * env,
     .gpaddr0 = (uint)gpaddr,
     .gpaddr1 = (uint)gpaddr + (uint)sz,
     .haddr   = haddr,
-  };    
+  };
 }
 
 static void
