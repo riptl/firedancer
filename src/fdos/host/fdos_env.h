@@ -3,6 +3,7 @@
 
 #include "../kern/fdos_hypercall.h"
 #include "../fdos_vmm.h"
+#include "../fdos_pvclock.h"
 #include "../x86/fd_x86_gdt.h"
 #include "../x86/fd_x86_idt.h"
 #include "../x86/fd_x86_tss.h"
@@ -77,9 +78,11 @@ struct fdos_env {
   ulong              entry_args_gvaddr;
   fdos_kern_args_t * entry_args;
 
-  /* Hypercalls */
-  ulong                 hyper_args_gvaddr;
-  fd_hypercall_args_t * hyper_args;
+  /* pvclock */
+  fd_pvclock_t * pvclock;
+  ulong          pvclock_gpaddr;
+  ulong          pvclock_kern_gvaddr;
+  ulong          pvclock_user_gvaddr;
 };
 
 typedef struct fdos_env fdos_env_t;

@@ -1,3 +1,4 @@
+#include "fdos_pvclock.h"
 #include "fdos_vmm.h"
 #include "host/fdos_kvm.h"
 #include "host/fdos_user.h"
@@ -5,6 +6,7 @@
 #include "x86/fd_x86_msr.h"
 #include "../util/fd_util.h"
 
+#include <stddef.h>
 #include <errno.h>
 #include <stdio.h> /* stderr, fflush */
 #include <fcntl.h> /* open(2) */
@@ -94,7 +96,6 @@ main( int     argc,
   if( FD_UNLIKELY( ioctl( kvm_fd, KVM_GET_SUPPORTED_CPUID, cpuid )<0 ) ) {
     FD_LOG_ERR(( "KVM_GET_SUPPORTED_CPUID failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
-
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_CPUID2, cpuid )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_CPUID2 failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
@@ -203,16 +204,20 @@ main( int     argc,
     FD_LOG_ERR(( "KVM_SET_XCRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
 
-  /* Setup SYSCALL MSRs */
+  /* Setup SYSCALL and pvclock MSRs */
 
   ulong msr_star = ((ulong)0x08 << 3) | /* kernel CS */
                    ((ulong)0x18 << 3);  /* user CS */
 
-  __attribute__((aligned(alignof(struct kvm_msrs)))) uchar msrs_buf[ sizeof(struct kvm_msrs) + sizeof(struct kvm_msr_entry) ];
+  __attribute__((aligned(alignof(struct kvm_msrs)))) uchar msrs_buf[ sizeof(struct kvm_msrs) + 2*sizeof(struct kvm_msr_entry) ];
   struct kvm_msrs * msr_req = fd_type_pun( msrs_buf );
-  msr_req->nmsrs = 1;
+  msr_req->nmsrs = 3;
   msr_req->entries[0].index = FD_X86_MSR_STAR;
   msr_req->entries[0].data  = msr_star;
+  msr_req->entries[1].index = FD_X86_MSR_PVCLOCK_EPOCH;
+  msr_req->entries[1].data  = env->pvclock_gpaddr;
+  msr_req->entries[2].index = FD_X86_MSR_PVCLOCK_OFF;
+  msr_req->entries[2].data  = (env->pvclock_gpaddr + offsetof(fd_pvclock_t, off)) | 1UL;
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_MSRS, msr_req )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_MSRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }

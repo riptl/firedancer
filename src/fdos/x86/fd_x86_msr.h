@@ -24,8 +24,10 @@
 #define FD_X86_EFER_LMA (1U<<10)
 #define FD_X86_EFER_NXE (1U<<11)
 
-#define FD_X86_MSR_STAR  0xc0000081
-#define FD_X86_MSR_LSTAR 0xc0000082
+#define FD_X86_MSR_STAR          0xc0000081
+#define FD_X86_MSR_LSTAR         0xc0000082
+#define FD_X86_MSR_PVCLOCK_EPOCH 0x4b564d00
+#define FD_X86_MSR_PVCLOCK_OFF   0x4b564d01
 
 #define FD_X86_XCR0_X87 (1U<<0)
 #define FD_X86_XCR0_SSE (1U<<1)

@@ -558,6 +558,7 @@ void fd_log_level_flush_set  ( int level ) { FD_VOLATILE( fd_log_private_level_f
 void fd_log_level_core_set   ( int level ) { FD_VOLATILE( fd_log_private_level_core    ) = level; }
 
 int fd_log_private_logfile_fd( void ) { return FD_VOLATILE_CONST( fd_log_private_fileno ); }
+void fd_log_private_logfile_fd_set( int fd ) { FD_VOLATILE( fd_log_private_fileno ) = fd; }
 
 void fd_log_enable_signal_handler( void ) { fd_log_private_signal_handler = 1; }
 void fd_log_enable_unclean_exit( void ) { fd_log_private_unclean_exit = 1; }

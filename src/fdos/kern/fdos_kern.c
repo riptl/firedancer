@@ -1,9 +1,11 @@
 /* Entrypoint for FiredancerOS kernel */
 
 #include "fdos_hypercall.h"
+#include "../fdos_pvclock.h"
+#include "../x86/fd_x86_msr.h"
 #include "../../util/log/fd_log.h"
 #include <stdarg.h>
-#include <stdio.h>
+#include <immintrin.h>
 
 __attribute__((naked))
 __attribute__((section(".text.hlt")))
@@ -14,71 +16,21 @@ hlt_blob( void ) {
 
 /* fd_util system environment *****************************************/
 
-static fd_hypercall_args_t volatile * g_hyper = NULL;
-
-long
-fd_log_wallclock( void ) {
-  return (long)fd_tickcount();
-}
-
-#define FD_LOG_BUF_SZ (32UL*4096UL)
-
-static char fd_log_private_log_msg[ FD_LOG_BUF_SZ ];
-static void
-hypercall_log( void ) {
-  __asm__ volatile (
-    "movw %[port], %%dx;\n"
-    "outsl;\n"
-    :
-    : [port] "r" ((ushort)FDOS_HYPERCALL_LOG)
-    : "rdx", "memory"
-  );
-}
-
-char const *
-fd_log_private_0( char const * fmt, ... ) {
-  va_list ap;
-  va_start( ap, fmt );
-  int len = vsnprintf( fd_log_private_log_msg, FD_LOG_BUF_SZ, fmt, ap );
-  if( len<0                        ) len = 0;                        /* cmov */
-  if( len>(int)(FD_LOG_BUF_SZ-1UL) ) len = (int)(FD_LOG_BUF_SZ-1UL); /* cmov */
-  fd_log_private_log_msg[ len ] = '\0';
-  va_end( ap );
-  return fd_log_private_log_msg;
-}
+static fd_pvclock_t * g_pvclock;
 
 void
-fd_log_private_1( int          level,
-                  long         now,
-                  char const * file,
-                  int          line,
-                  char const * func,
-                  char const * msg ) {
-  (void)now;
-  fd_hypercall_args_t volatile * args = g_hyper;
-  args->log.file_gvaddr = (ulong)file;
-  args->log.file_len    = strlen( file );
-  args->log.func_gvaddr = (ulong)func;
-  args->log.func_len    = strlen( func );
-  args->log.msg_gvaddr  = (ulong)msg;
-  args->log.msg_len     = strlen( msg );
-  args->log.now         = fd_tickcount();
-  args->log.line        = line;
-  args->log.level       = level;
-  hypercall_log();
-}
+fd_log_flush( void ) {}
 
-__attribute__((noreturn)) void
-fd_log_private_2( int          level,
-                  long         now,
-                  char const * file,
-                  int          line,
-                  char const * func,
-                  char const * msg ) {
-  (void)now;
-  fd_log_private_1( level, now, file, line, func, msg );
-  __asm__ volatile ("hlt");
-  for(;;) {}
+int
+fd_io_write( int          fd,
+             void const * src,
+             ulong        src_min,
+             ulong        src_max,
+             ulong *      _src_sz ) {
+  (void)src_min;
+  fdos_hypercall_write( fd, src, src_max );
+  *_src_sz = src_max; /* FIXME error handling */
+  return 0;       
 }
 
 /* Context switching **************************************************/
@@ -98,22 +50,13 @@ longjmp( void ) {
   );
 }
 
-static ulong
-syscall_write( int          fd,
-               void const * buf,
-               ulong        count ) {
-  if( fd==2 && count ) FD_LOG_NOTICE(( "write to fd %d\n%.*s", fd, (int)count-1, (char *)buf ));
-  return count;
-}
-
 ulong
 syscall_handler1( ulong arg0,
                   ulong arg1,
                   ulong arg2,
                   uint  num ) {
+  (void)arg0; (void)arg1; (void)arg2;
   switch( num ) {
-  case 1: /* write */
-    return syscall_write( (int)arg0, (void *)arg1, arg2 );
   case 231: /* exit_group */
     longjmp();
   default:
@@ -179,8 +122,7 @@ fd_jmp_buf_t g_sysret;
 
 __attribute__((naked)) void
 enter_ring3( ulong user_stack_top_gpaddr, /* rdi */
-             ulong function,              /* rsi */
-             ulong fs ) {                 /* rcx */
+             ulong function ) {           /* rsi */
   __asm__ volatile (
       "pushq $0x23;\n" /* segment 4 */
       "pushq %rdi;\n"  /* user stack */
@@ -189,7 +131,6 @@ enter_ring3( ulong user_stack_top_gpaddr, /* rdi */
       "movl $0x23, %eax;\n"
       "movw %ax, %ds;\n"
       "movw %ax, %es;\n"
-      "wrfsbase %rdx;\n"
       "lretq;\n"
   );
 }
@@ -237,7 +178,13 @@ ring3_end( void ) {
 
 __attribute__((noreturn)) void
 fdos_kern_main( fdos_kern_args_t * args ) {
-  g_hyper = (fd_hypercall_args_t *)args->hyper_args_gvaddr;
+  g_pvclock = (fd_pvclock_t *)args->pvclock_gvaddr;
+
+  fd_log_thread_set( "kvm0" );
+  fd_log_wallclock_set( fd_pvclock_now, g_pvclock );
+  fd_log_colorize_set( 1 );
+
+  _writefsbase_u64( args->ring3_fs );
 
   FD_LOG_NOTICE(( "Hello world!" ));
 
@@ -246,7 +193,7 @@ fdos_kern_main( fdos_kern_args_t * args ) {
   ulong const user_stack_top_gpaddr = args->stack_user_top_gvaddr-8UL;
   FD_STORE( ulong, (void *)user_stack_top_gpaddr, (ulong)ring3_end );
   if( setjmp()==0 ) {
-    enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr, args->ring3_fs );
+    enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr );
   } else {
     FD_LOG_NOTICE(( "Returned from ring 3" ));
   }

@@ -10,11 +10,12 @@
 
 /* Virtual memory layout */
 
-#define FDOS_GVADDR_SVM_LO                     0x0UL
-#define FDOS_GVADDR_SVM_HI             0x100000000UL
-#define FDOS_GVADDR_KERN_HEAP   0xffffc90000000000UL
-#define FDOS_GVADDR_KERN_STACK  0xffffff8000000000UL
-#define FDOS_GVADDR_KERN_IMG    0xffffffff80000000UL
+#define FDOS_GVADDR_SVM_LO                      0x0UL
+#define FDOS_GVADDR_SVM_HI              0x100000000UL
+#define FDOS_GVADDR_USER_GVCLOCK     0x7ffffffff000UL
+#define FDOS_GVADDR_KERN_HEAP    0xffffc90000000000UL
+#define FDOS_GVADDR_KERN_STACK   0xffffff8000000000UL
+#define FDOS_GVADDR_KERN_IMG     0xffffffff80000000UL
 
 /* Global Descriptor Table */
 

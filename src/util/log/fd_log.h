@@ -736,6 +736,7 @@ void fd_log_private_user_set ( char const * user  ); /* Not thread safe */
    for filtering and security, it should never be used to actually write
    logs and that should be done by the functions in fd_log.h */
 int fd_log_private_logfile_fd( void );
+void fd_log_private_logfile_fd_set( int fd );
 
 FD_PROTOTYPES_END
 
