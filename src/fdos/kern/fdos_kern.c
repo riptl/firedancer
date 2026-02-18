@@ -83,8 +83,84 @@ fd_log_private_2( int          level,
 
 /* Context switching **************************************************/
 
-void
-syscall_handler( void );
+__attribute__((naked,noreturn)) void
+longjmp( void ) {
+  __asm__ volatile (
+      "movabsq $g_sysret, %rdi;\n"
+      "movq (%rdi), %rbx;\n"
+      "movq 8(%rdi), %rbp;\n"
+      "movq 16(%rdi), %r12;\n"
+      "movq 24(%rdi), %r13;\n"
+      "movq 32(%rdi), %r14;\n"
+      "movq 40(%rdi), %r15;\n"
+      "movq 48(%rdi), %rsp;\n"
+      "jmp *56(%rdi);\n"
+  );
+}
+
+static ulong
+syscall_write( int          fd,
+               void const * buf,
+               ulong        count ) {
+  if( fd==2 && count ) FD_LOG_NOTICE(( "write to fd %d\n%.*s", fd, (int)count-1, (char *)buf ));
+  return count;
+}
+
+ulong
+syscall_handler1( ulong arg0,
+                  ulong arg1,
+                  ulong arg2,
+                  uint  num ) {
+  switch( num ) {
+  case 1: /* write */
+    return syscall_write( (int)arg0, (void *)arg1, arg2 );
+  case 231: /* exit_group */
+    longjmp();
+  default:
+    FD_LOG_CRIT(( "unsupported syscall %u", num ));
+  }
+}
+
+__attribute__((naked)) void
+syscall_handler( void ) {
+  __asm__ volatile (
+      "sub $128, %rsp;\n"
+      /* This is probably a bit overkill */
+      "pushq %rbp;\n"
+      "pushq %rdi;\n"
+      "pushq %rsi;\n"
+      "pushq %rbx;\n"
+      "pushq %rcx;\n"
+      "pushq %rdx;\n"
+      "pushq %r8;\n"
+      "pushq %r9;\n"
+      "pushq %r10;\n"
+      "pushq %r12;\n"
+      "pushq %r13;\n"
+      "pushq %r14;\n"
+      "pushq %r15;\n"
+      "movq %rax, %rcx;\n"
+      "movq %rsp, %rbp;\n"
+      "and $-16, %rsp;\n"
+      "callq syscall_handler1;\n"
+      "movq %rbp, %rsp;\n"
+      "popq %r15;\n"
+      "popq %r14;\n"
+      "popq %r13;\n"
+      "popq %r12;\n"
+      "popq %r10;\n"
+      "popq %r9;\n"
+      "popq %r8;\n"
+      "popq %rdx;\n"
+      "popq %rcx;\n"
+      "popq %rbx;\n"
+      "popq %rsi;\n"
+      "popq %rdi;\n"
+      "popq %rbp;\n"
+      "add $128, %rsp;\n"
+      "sysretq;\n"
+  );
+}
 
 struct fd_jmp_buf {
   ulong rbx;
@@ -137,31 +213,25 @@ setjmp( void ) {
   );
 }
 
-__attribute__((naked)) void
-longjmp( void ) {
-  __asm__ volatile (
-      "movabsq $g_sysret, %rdi;\n"
-      "movq (%rdi), %rbx;\n"
-      "movq 8(%rdi), %rbp;\n"
-      "movq 16(%rdi), %r12;\n"
-      "movq 24(%rdi), %r13;\n"
-      "movq 32(%rdi), %r14;\n"
-      "movq 40(%rdi), %r15;\n"
-      "movq 48(%rdi), %rsp;\n"
-      "jmp *56(%rdi);\n"
-  );
-}
-
 static void
 setup_lstar( void ) {
   __asm__ volatile (
       "movl $0xc0000082, %%ecx;\n"
-      "movq $longjmp, %%rax;\n"
+      "movq $syscall_handler, %%rax;\n"
       "movq %%rax, %%rdx;\n"
       "shrq $32, %%rdx;\n"
       "wrmsr;\n"
       :
       : : "rax", "rcx", "rdx", "memory"
+  );
+}
+
+__attribute__((naked)) static void
+ring3_end( void ) {
+  __asm__ volatile (
+      "mov $231, %eax;\n"
+      "syscall;\n"
+      "ud2;\n"
   );
 }
 
@@ -174,6 +244,7 @@ fdos_kern_main( fdos_kern_args_t * args ) {
   setup_lstar();
 
   ulong const user_stack_top_gpaddr = args->stack_user_top_gvaddr-8UL;
+  FD_STORE( ulong, (void *)user_stack_top_gpaddr, (ulong)ring3_end );
   if( setjmp()==0 ) {
     enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr, args->ring3_fs );
   } else {

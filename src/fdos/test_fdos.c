@@ -55,8 +55,7 @@ main( int     argc,
   // fputs( "\n", stderr );
   // fflush( stderr );
 
-  /* Print physical memory map */
-  FD_LOG_NOTICE(( "physical memory map:\n" ));
+  // FD_LOG_NOTICE(( "physical memory map:\n" ));
 
   /* Map memory regions into guest physical memory */
 
@@ -68,14 +67,14 @@ main( int     argc,
       .memory_size     = env->phys[ i ].gpaddr1 - env->phys[ i ].gpaddr0,
       .userspace_addr  = env->phys[ i ].haddr
     };
-    fprintf( stderr, "  slot=%u phys=%#010llx..%#010llx userspace_addr=%p\n",
-             region.slot, region.guest_phys_addr, region.guest_phys_addr + region.memory_size, (void *)region.userspace_addr );
+    // fprintf( stderr, "  slot=%u phys=%#010llx..%#010llx userspace_addr=%p\n",
+    //          region.slot, region.guest_phys_addr, region.guest_phys_addr + region.memory_size, (void *)region.userspace_addr );
     if( FD_UNLIKELY( ioctl( vm_fd, KVM_SET_USER_MEMORY_REGION, &region )<0 ) ) {
       FD_LOG_ERR(( "KVM_SET_USER_MEMORY_REGION(slot=%u,guest_phys_addr=%#llx,memory_size=%#llx,userspace_addr=%p) failed (%i-%s)",
                   region.slot, region.guest_phys_addr, region.memory_size, (void *)region.userspace_addr, errno, fd_io_strerror( errno ) ));
     }
   }
-  fputs( "\n", stderr );
+  // fputs( "\n", stderr );
 
   /* Enable KVM_CAP_X86_TRIPLE_FAULT_EVENT */
 

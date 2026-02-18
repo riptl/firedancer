@@ -160,7 +160,7 @@ fdos_vmm_map_range( ulong *            pml4,
   ulong const paddr1 = paddr+sz;
   ulong       vaddr0 = vaddr;
   ulong const vaddr1 = vaddr+sz;
-  FD_LOG_INFO(( "Mapping gvaddr=[%#lx,%#lx) gpaddr=[%#lx,%#lx) sz=%5lu KiB", vaddr0, vaddr1, paddr0, paddr1, sz>>10 ));
+  FD_LOG_DEBUG(( "Mapping gvaddr=[%#lx,%#lx) gpaddr=[%#lx,%#lx) sz=%5lu KiB", vaddr0, vaddr1, paddr0, paddr1, sz>>10 ));
   FD_CRIT( fd_ulong_is_aligned( paddr0, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( paddr1, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( vaddr0, FD_X86_PML1E_RANGE ), "invalid argument" );

@@ -182,6 +182,7 @@ patch_trampoline( fdos_env_t * env,
 
 static void
 ring3_hello( void ) {
+  fd_log_thread_set( "kvm3" );
   FD_LOG_NOTICE(( "HELLO" ));
 }
 
@@ -342,6 +343,6 @@ fdos_gpaddr_to_haddr( ulong             gpaddr,
   }
   if( phys_idx==FDOS_PIDX_MAX ) return NULL;     
 
-  ulong off  = gpaddr - phys[ phys_idx ].gpaddr0;
+  ulong off = gpaddr - phys[ phys_idx ].gpaddr0;
   return (uchar *)phys[ phys_idx ].haddr + off;          
 }

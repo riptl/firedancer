@@ -55,7 +55,7 @@ hypercall_log( fdos_env_t *                kern,
   char   thread_backup[ FD_LOG_NAME_MAX ];
   char * thread_name = (char *)fd_log_thread();
   memcpy( thread_backup, thread_name, FD_LOG_NAME_MAX );
-  strcpy( thread_name, "kvm" );
+  strcpy( thread_name, "kvm0" );
   fd_log_private_1( (int)args->log.level, now, file, (int)args->log.line, func, msg );
   memcpy( thread_name, thread_backup, FD_LOG_NAME_MAX );
 }
@@ -134,11 +134,19 @@ trace_rip( fdos_env_t *     env,
 
 static void
 maybe_handle_interrupt( fdos_env_t * kern,
+                        int          vcpu_fd, 
                         ulong        rip ) {
   ulong hlt0 = kern->text.gvaddr;
   ulong hlt1 = hlt0 + 256;
   if( FD_UNLIKELY( rip<hlt0 || rip>=hlt1 ) ) return;
   uint idx = (uint)( rip - hlt0 );
+  if( idx==0x0e ) {
+    struct kvm_sregs sregs;
+    if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_SREGS, &sregs )<0 ) ) {
+      FD_LOG_ERR(( "KVM_GET_REGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+    }
+    FD_LOG_NOTICE(( "Page fault address: %#llx", sregs.cr2 ));
+  }
   FD_LOG_ERR(( "Caught interrupt type %02x-%s", idx, fd_x86_interrupt_cstr( idx ) ));
 }
 
@@ -169,7 +177,7 @@ fdos_kvm_run( fdos_env_t *     kern,
     }
     ulong rip = regs.rip - 1UL; /* why is this off by one? */
     trace_rip( kern, kvm_run, vcpu_fd, rip );
-    maybe_handle_interrupt( kern, rip );
+    maybe_handle_interrupt( kern, vcpu_fd, rip );
     FD_LOG_NOTICE(( "KVM guest issued HLT instruction" ));
     return 1;
   }
