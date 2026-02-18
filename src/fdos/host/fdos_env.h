@@ -17,7 +17,13 @@ struct fdos_vmo {
 
 typedef struct fdos_vmo fdos_vmo_t;
 
-#define FDOS_PHYS_MAX 16UL
+#define FDOS_PIDX_KERN_HEAP   0
+#define FDOS_PIDX_KERN_STACK  1
+#define FDOS_PIDX_KERN_TEXT   2
+#define FDOS_PIDX_KERN_RODATA 3
+#define FDOS_PIDX_KERN_DATA   4
+#define FDOS_PIDX_USER_MEM    5
+#define FDOS_PIDX_MAX         6
 
 struct fdos_phys {
   uint  gpaddr0;
@@ -31,20 +37,18 @@ struct fdos_env {
   fd_wksp_t * wksp_kern_heap;  /* general-purpose heap allocator */
   fd_wksp_t * wksp_kern_data;  /* .data section */
   fd_wksp_t * wksp_kern_stack;
-  fd_wksp_t * wksp_user_stack;
+  fd_wksp_t * wksp_user_mem;   /* copy of user virtual memory map */
 
   /* Physical memory mappings */
-  fdos_phys_t phys[ FDOS_PHYS_MAX ];
+  fdos_phys_t phys[ FDOS_PIDX_MAX ];
 
   /* Page tables
      First page is PML4, various other pages follow */
   fdos_vmm_alloc_t vmm_alloc[1];
 
-  /* Stack (kernel, user) */
+  /* Kernel stack */
   ulong   stack_kern_top_gvaddr;
   ulong   stack_kern_sz;
-  ulong   stack_user_top_gvaddr;
-  ulong   stack_user_sz;
 
   /* Kernel image */
   fdos_vmo_t text;

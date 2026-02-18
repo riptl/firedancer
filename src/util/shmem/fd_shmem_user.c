@@ -115,6 +115,7 @@ fd_shmem_private_map_rand( ulong size,
     /* Assume 47-bit virtual addressing */
     ret_addr &= 0x00007FFFFFFFFFFFUL;
     ret_addr  = fd_ulong_align_up( ret_addr, align );
+    if( ret_addr <= UINT_MAX ) continue;
 
     if( fd_shmem_private_grab_region( ret_addr, size, prot )!=MAP_FAILED ) {
       return (void *)ret_addr;

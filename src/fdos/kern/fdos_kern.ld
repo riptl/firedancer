@@ -13,6 +13,7 @@ SECTIONS
   . = 0xffffffff80000000;
 
   .text : AT(ADDR(.text) - 0xffffffff80000000) {
+    *(.text.hlt)
     *(.text)
     . = ALIGN(4K);
   } :CODE

@@ -29,7 +29,7 @@ fdos_vmm_alloc( fdos_vmm_alloc_t * a ) {
 static inline ulong *
 fdos_pt_gpaddr_to_haddr( fdos_vmm_alloc_t const * a,
                          ulong                   gpaddr ) {
-  return (ulong *)( a->haddr + ( gpaddr - a->gpaddr ) );                  
+  return (ulong *)( a->haddr + ( gpaddr - a->gpaddr ) );
 }
 
 ulong *
@@ -154,7 +154,7 @@ fdos_vmm_map_range( ulong *            pml4,
   ulong const paddr1 = paddr+sz;
   ulong       vaddr0 = vaddr;
   ulong const vaddr1 = vaddr+sz;
-  FD_LOG_INFO(( "Mapping vaddr [%#lx,%#lx) to paddr [%#lx,%#lx)", vaddr0, vaddr1, paddr0, paddr1 ));
+  FD_LOG_INFO(( "Mapping gvaddr=[%#lx,%#lx) gpaddr=[%#lx,%#lx) sz=%5lu KiB", vaddr0, vaddr1, paddr0, paddr1, sz>>10 ));
   FD_CRIT( fd_ulong_is_aligned( paddr0, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( paddr1, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( vaddr0, FD_X86_PML1E_RANGE ), "invalid argument" );
@@ -190,7 +190,7 @@ static resolved_page_t *
 resolve_page( resolved_page_t *        out,
               ulong                    gvaddr,
               fdos_vmm_alloc_t const * alloc ) {
-              
+
   ulong pml4e_idx = fd_ulong_extract( gvaddr, 39, 47 );
   ulong pml3e_idx = fd_ulong_extract( gvaddr, 30, 38 );
   ulong pml2e_idx = fd_ulong_extract( gvaddr, 21, 29 );
@@ -303,7 +303,7 @@ append_range( char * p,
               ulong  base,
               ulong  sz ) {
   ulong v0 = base;
-  ulong v1 = base+sz;    
+  ulong v1 = base+sz;
   p = append_ptr( p, v0 );
   p = fd_cstr_append_text( p, "..", 2 );
   p = append_ptr( p, v1 );
@@ -341,7 +341,7 @@ pml_last_idx( ulong const * pml ) {
 }
 
 static int
-printf_pml1( ulong const * pml1, 
+printf_pml1( ulong const * pml1,
              ulong         vaddr0,
              FILE *        file,
              char          prefix[ 6 ] ) {
@@ -381,7 +381,7 @@ printf_pml1( ulong const * pml1,
 }
 
 static int
-printf_pml2( ulong const *            pml2, 
+printf_pml2( ulong const *            pml2,
              ulong                    vaddr0,
              FILE *                   file,
              fdos_vmm_alloc_t const * alloc,
@@ -433,7 +433,7 @@ printf_pml2( ulong const *            pml2,
 }
 
 static int
-printf_pml3( ulong const *            pml3, 
+printf_pml3( ulong const *            pml3,
              ulong                    vaddr0,
              FILE *                   file,
              fdos_vmm_alloc_t const * alloc,
@@ -449,7 +449,7 @@ printf_pml3( ulong const *            pml3,
       if( FD_UNLIKELY( err ) ) return err;
     }
     found_idx = i+1UL;
-    
+
     char * p = fd_cstr_init( line );
     p = fd_cstr_append_text( p, prefix, 2 );
     if( pml3[ i ] & FD_X86_PT_PS ) {
@@ -485,7 +485,7 @@ printf_pml3( ulong const *            pml3,
 }
 
 static int
-printf_pml4( ulong const *            pml4, 
+printf_pml4( ulong const *            pml4,
              FILE *                   file,
              fdos_vmm_alloc_t const * alloc ) {
   char prefix[ 6 ];
@@ -504,7 +504,7 @@ printf_pml4( ulong const *            pml4,
       if( FD_UNLIKELY( err ) ) return err;
     }
     found_idx = i+1UL;
-    
+
     char * p = fd_cstr_init( line );
     p = fd_cstr_append_cstr( p, "+-+ PML3                                  " );
     p = append_flags( p, pml4[ i ] );

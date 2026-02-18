@@ -12,6 +12,7 @@
 struct fdos_kern_args {
   ulong hyper_args_gvaddr;
   ulong stack_user_top_gvaddr;
+  ulong ring3_entry_gvaddr;
 };
 
 typedef struct fdos_kern_args fdos_kern_args_t;
@@ -22,10 +23,20 @@ typedef struct fdos_kern_args fdos_kern_args_t;
 
 /* fd_hypercall_args_t holds hypercall request and reply arguments. */
 
-struct fd_hypercall_args {
-  ulong arg[5];
+union fd_hypercall_args {
+  struct {
+    ulong file_gvaddr;
+    ulong file_len;
+    ulong func_gvaddr;
+    ulong func_len;
+    ulong msg_gvaddr;
+    ulong msg_len;
+    long  now;
+    int   line;
+    int   level;
+  } log;
 };
 
-typedef struct fd_hypercall_args fd_hypercall_args_t;
+typedef union fd_hypercall_args fd_hypercall_args_t;
 
 #endif /* HEADER_fd_src_fdos_kern_fdos_hypercall_h */

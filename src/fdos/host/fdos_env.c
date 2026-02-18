@@ -8,6 +8,7 @@
    long mode, or switching between different address spaces). */
 
 #include "fdos_env.h"
+#include "fdos_user.h"
 #include "../kern/fdos_kern_def.h"
 #include "../x86/fd_x86_mmu.h"
 #include "../fdos_vmm.h"
@@ -29,7 +30,7 @@ fdos_env_tss( fdos_env_t * env ) {
   tss_kern->rsp0       = env->stack_kern_top_gvaddr;
   tss_kern->iomap_base = 0x1000; /* exceeds tss_limit -> no IO map */
 
-  tss_user->rsp0       = env->stack_user_top_gvaddr;
+  tss_user->rsp0       = 0UL;
   tss_user->iomap_base = 0x1000; /* exceeds tss_limit -> no IO map */
 
   env->tss_kern_gpaddr = FDOS_GPADDR_KERN_HEAP + tss_kern_gaddr;
@@ -135,7 +136,7 @@ fdos_env_gdt( fdos_env_t * env ) {
 static void
 fdos_env_idt( fdos_env_t * env ) {
   /* Interrupt handler */
-  ulong   interrupt_handler_gvaddr = env->text.gvaddr;
+  ulong interrupt_handler_gvaddr = env->text.gvaddr;
   env->int_handler_gvaddr = interrupt_handler_gvaddr;
 
   /* IDT */
@@ -161,6 +162,11 @@ fdos_env_idt( fdos_env_t * env ) {
   env->idt        = idt;
 }
 
+static void
+ring3_hello( void ) {
+  __asm__ volatile ( "syscall" );
+}
+
 /* fdos_env_shared sets up interop shared data structures between the
    host and the guest kernel. */
 
@@ -182,8 +188,11 @@ fdos_env_shared( fdos_env_t * env ) {
   memset( env->entry_args, 0, sizeof(fdos_kern_args_t) );
   fdos_kern_args_t * entry_args = env->entry_args;
 
-  entry_args->hyper_args_gvaddr     = env->hyper_args_gvaddr;
-  entry_args->stack_user_top_gvaddr = env->stack_user_top_gvaddr;
+  entry_args->hyper_args_gvaddr = env->hyper_args_gvaddr;
+  ulong rsp; __asm__ ( "mov %%rsp, %0" : "=r"(rsp) );
+  entry_args->stack_user_top_gvaddr = env->stack_kern_top_gvaddr;
+  entry_args->ring3_entry_gvaddr    = (ulong)ring3_hello;
+  FD_LOG_HEXDUMP_NOTICE(( "entrypoint", (void *)(ulong)ring3_hello, 32UL ));
 }
 
 /* fdos_env_ring0_setup sets up various dynamic x86 data structures and
@@ -203,7 +212,7 @@ phys_map_range( fdos_env_t * env,
                 ulong        gpaddr,
                 ulong        haddr,
                 ulong        sz ) {
-  FD_TEST( slot<FDOS_PHYS_MAX );
+  FD_TEST( slot<FDOS_PIDX_MAX );
   FD_TEST( gpaddr<=UINT_MAX && sz<=UINT_MAX && gpaddr+sz<=UINT_MAX );
   env->phys[ slot ] = (fdos_phys_t) {
     .gpaddr0 = (uint)gpaddr,
@@ -217,7 +226,7 @@ phys_map_wksp( fdos_env_t * env,
                uint         slot,
                ulong        gpaddr,
                fd_wksp_t *  wksp ) {
-  FD_TEST( slot<FDOS_PHYS_MAX );
+  FD_TEST( slot<FDOS_PIDX_MAX );
   fd_shmem_join_info_t info[1];
   FD_TEST( 0==fd_shmem_join_query_by_join( wksp, info ) );
   phys_map_range( env, slot, gpaddr, (ulong)wksp, info->page_sz * info->page_cnt );
@@ -231,30 +240,23 @@ fdos_env_create( fdos_env_t *  env,
   ulong part_max  = 61UL; /* 4096 headroom */
 
   /* Allocate guest physical memory regions */
-  fd_wksp_t * wksp_kern_heap  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 1024UL, guest_cpu, "kern_heap",  part_max ); FD_TEST( wksp_kern_heap  );
-  fd_wksp_t * wksp_kern_data  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 1024UL, guest_cpu, "kern_data",  part_max ); FD_TEST( wksp_kern_data  );
-  fd_wksp_t * wksp_kern_stack = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 1024UL, guest_cpu, "kern_stack", part_max ); FD_TEST( wksp_kern_stack );
-  fd_wksp_t * wksp_user_stack = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 1024UL, guest_cpu, "user_stack", part_max ); FD_TEST( wksp_user_stack );
+  fd_wksp_t * wksp_kern_heap  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ,  1024UL, guest_cpu, "kern_heap",  part_max ); FD_TEST( wksp_kern_heap  );
+  fd_wksp_t * wksp_kern_data  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ,  1024UL, guest_cpu, "kern_data",  part_max ); FD_TEST( wksp_kern_data  );
+  fd_wksp_t * wksp_kern_stack = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ,  1024UL, guest_cpu, "kern_stack", part_max ); FD_TEST( wksp_kern_stack );
+  fd_wksp_t * wksp_user_mem   = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 65536UL, guest_cpu, "user_mem",   part_max ); FD_TEST( wksp_user_mem   );
 
   /* Guest kernel stack */
   ulong stack_kern_gaddr  = fd_wksp_alloc( wksp_kern_stack, 16UL, 2*FD_SHMEM_HUGE_PAGE_SZ-FD_SHMEM_NORMAL_PAGE_SZ, 1UL );
   FD_TEST( stack_kern_gaddr );
 
-  /* Guest user stack */
-  ulong stack_user_gaddr  = fd_wksp_alloc( wksp_user_stack, 16UL, 2*FD_SHMEM_HUGE_PAGE_SZ-FD_SHMEM_NORMAL_PAGE_SZ, 1UL );
-  FD_TEST( stack_user_gaddr );
-
   *env = (fdos_env_t) {
     .wksp_kern_heap   = wksp_kern_heap,
     .wksp_kern_data   = wksp_kern_data,
     .wksp_kern_stack  = wksp_kern_stack,
-    .wksp_user_stack  = wksp_user_stack,
+    .wksp_user_mem    = wksp_user_mem,
 
     .stack_kern_top_gvaddr = FDOS_GVADDR_KERN_STACK + 2*FD_SHMEM_HUGE_PAGE_SZ - 4096,
     .stack_kern_sz         = 2*FD_SHMEM_HUGE_PAGE_SZ,
-
-    // .stack_user_top_gvaddr = FDOS_GVADDR_USER_STACK + stack_user_gaddr,
-    // .stack_user_sz         = 2*FD_SHMEM_HUGE_PAGE_SZ
   };
 
   /* Load kernel image into memory */
@@ -283,12 +285,16 @@ fdos_env_create( fdos_env_t *  env,
   fdos_env_ring0_setup( env );
 
   /* Set up physical memory mappings */
-  phys_map_wksp ( env, 0U, FDOS_GPADDR_KERN_HEAP,  env->wksp_kern_heap  );
-  phys_map_wksp ( env, 1U, FDOS_GPADDR_KERN_STACK, env->wksp_kern_stack );
-  phys_map_wksp ( env, 2U, FDOS_GPADDR_USER_STACK, env->wksp_user_stack );
-  phys_map_range( env, 3U, env->text.gpaddr,       env->text.haddr,   env->text.sz   );
-  phys_map_range( env, 4U, env->rodata.gpaddr,     env->rodata.haddr, env->rodata.sz );
-  phys_map_range( env, 5U, env->data.gpaddr,       env->data.haddr,   env->data.sz   );
+  phys_map_wksp ( env, FDOS_PIDX_KERN_HEAP,   FDOS_GPADDR_KERN_HEAP,  env->wksp_kern_heap  );
+  phys_map_wksp ( env, FDOS_PIDX_KERN_STACK,  FDOS_GPADDR_KERN_STACK, env->wksp_kern_stack );
+  phys_map_range( env, FDOS_PIDX_KERN_TEXT,   env->text.gpaddr,       env->text.haddr,   env->text.sz   );
+  phys_map_range( env, FDOS_PIDX_KERN_RODATA, env->rodata.gpaddr,     env->rodata.haddr, env->rodata.sz );
+  phys_map_range( env, FDOS_PIDX_KERN_DATA,   env->data.gpaddr,       env->data.haddr,   env->data.sz   );
+  phys_map_wksp ( env, FDOS_PIDX_USER_MEM,    FDOS_GPADDR_USER_MEM,   env->wksp_user_mem   );
+
+  /* Migrate current userland into VM */
+  FD_LOG_NOTICE(( "Migrating userland" ));
+  fdos_user_copy( &env->phys[ FDOS_PIDX_USER_MEM ], env->vmm_alloc );
 
   return env;
 }
@@ -298,6 +304,5 @@ fdos_env_destroy( fdos_env_t * env ) {
   fd_wksp_delete_anonymous( env->wksp_kern_heap  );
   fd_wksp_delete_anonymous( env->wksp_kern_data  );
   fd_wksp_delete_anonymous( env->wksp_kern_stack );
-  fd_wksp_delete_anonymous( env->wksp_user_stack );
   memset( env, 0, sizeof(fdos_env_t) );
 }

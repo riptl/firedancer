@@ -5,6 +5,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+__attribute__((naked))
+__attribute__((section(".text.hlt")))
+void
+hlt_blob( void ) {
+  __asm__ volatile (".space 256, 0xf4");
+}
+
 /* fd_util system environment *****************************************/
 
 static fd_hypercall_args_t volatile * g_hyper = NULL;
@@ -17,18 +24,8 @@ fd_log_wallclock( void ) {
 #define FD_LOG_BUF_SZ (32UL*4096UL)
 
 static char fd_log_private_log_msg[ FD_LOG_BUF_SZ ];
-static ulong
-hypercall_log( ulong arg0,
-               ulong arg1,
-               ulong arg2,
-               ulong arg3,
-               ulong arg4 ) {
-  g_hyper->arg[0] = arg0;
-  g_hyper->arg[1] = arg1;
-  g_hyper->arg[2] = arg2;
-  g_hyper->arg[3] = arg3;
-  g_hyper->arg[4] = arg4;
-
+static void
+hypercall_log( void ) {
   __asm__ volatile (
     "movw %[port], %%dx;\n"
     "outsl;\n"
@@ -36,8 +33,6 @@ hypercall_log( ulong arg0,
     : [port] "r" ((ushort)FDOS_HYPERCALL_LOG)
     : "rdx", "memory"
   );
-
-  return g_hyper->arg[0];
 }
 
 char const *
@@ -60,13 +55,17 @@ fd_log_private_1( int          level,
                   char const * func,
                   char const * msg ) {
   (void)now;
-  hypercall_log(
-      /* arg0 */ (ulong)level,
-      /* arg1 */ (ulong)file,
-      /* arg2 */ (ulong)line,
-      /* arg3 */ (ulong)func,
-      /* arg4 */ (ulong)msg
-  );
+  fd_hypercall_args_t volatile * args = g_hyper;
+  args->log.file_gvaddr = (ulong)file;
+  args->log.file_len    = strlen( file );
+  args->log.func_gvaddr = (ulong)func;
+  args->log.func_len    = strlen( func );
+  args->log.msg_gvaddr  = (ulong)msg;
+  args->log.msg_len     = strlen( msg );
+  args->log.now         = fd_tickcount();
+  args->log.line        = line;
+  args->log.level       = level;
+  hypercall_log();
 }
 
 __attribute__((noreturn)) void
@@ -77,13 +76,7 @@ fd_log_private_2( int          level,
                   char const * func,
                   char const * msg ) {
   (void)now;
-  hypercall_log(
-      /* arg0 */ (ulong)level,
-      /* arg1 */ (ulong)file,
-      /* arg2 */ (ulong)line,
-      /* arg3 */ (ulong)func,
-      /* arg4 */ (ulong)msg
-  );
+  fd_log_private_1( level, now, file, line, func, msg );
   __asm__ volatile ("hlt");
   for(;;) {}
 }
@@ -107,23 +100,6 @@ struct fd_jmp_buf {
 typedef struct fd_jmp_buf fd_jmp_buf_t;
 
 fd_jmp_buf_t g_sysret;
-
-static void
-hello_ring3( void ) {
-  FD_LOG_NOTICE(( "Hello from ring 3!" ));
-  FD_LOG_NOTICE(( "Returning to ring 0" ));
-  __asm__ volatile (
-      "movq $1, %rax;\n"
-      "syscall;\n"
-  );
-}
-
-static void
-bounce_ring3( void ) {
-  __asm__ volatile (
-      "syscall;\n"
-  );
-}
 
 __attribute__((naked)) void
 enter_ring3( ulong user_stack_top_gpaddr,
@@ -197,24 +173,14 @@ fdos_kern_main( fdos_kern_args_t * args ) {
 
   setup_lstar();
 
-  FD_LOG_NOTICE(( "Entering ring 3 user stack top %#lx", args->stack_user_top_gvaddr ));
   ulong const user_stack_top_gpaddr = args->stack_user_top_gvaddr-8UL;
   if( setjmp()==0 ) {
-    enter_ring3( user_stack_top_gpaddr, (ulong)hello_ring3 );
+    enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr );
   } else {
     FD_LOG_NOTICE(( "Returned from ring 3" ));
   }
-  FD_LOG_NOTICE(( "Doing 10 million context switches" ));
-
-  for( ulong i=0UL; i<10000000UL; i++ ) {
-    if( setjmp()==0 ) {
-      enter_ring3( user_stack_top_gpaddr, (ulong)bounce_ring3 );
-    }
-  }
 
   FD_LOG_ERR(( "Goodbye" ));
-  __asm__ volatile ("hlt");
-  for(;;) {}
 }
 
 __attribute__((noreturn)) void

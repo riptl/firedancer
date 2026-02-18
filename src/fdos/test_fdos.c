@@ -1,5 +1,6 @@
 #include "fdos_vmm.h"
 #include "host/fdos_kvm.h"
+#include "host/fdos_user.h"
 #include "kern/fdos_kern_def.h"
 #include "x86/fd_x86_msr.h"
 #include "../util/fd_util.h"
@@ -47,19 +48,19 @@ main( int     argc,
   fdos_env_t env[1];
   FD_TEST( fdos_env_create( env, fdos_kern_img, fdos_kern_img_sz ) );
 
-  /* Print page table */
-  ulong const * pml4 = (ulong const *)env->vmm_alloc->haddr;
-  FD_LOG_NOTICE(( "page table (at gpaddr=%#lx):\n", env->vmm_alloc->gpaddr ));
-  fdos_vmm_printf( pml4, stderr, env->vmm_alloc );
-  fputs( "\n", stderr );
-  fflush( stderr );
+  // /* Print page table */
+  // ulong const * pml4 = (ulong const *)env->vmm_alloc->haddr;
+  // FD_LOG_NOTICE(( "page table (at gpaddr=%#lx):\n", env->vmm_alloc->gpaddr ));
+  // fdos_vmm_printf( pml4, stderr, env->vmm_alloc );
+  // fputs( "\n", stderr );
+  // fflush( stderr );
 
   /* Print physical memory map */
   FD_LOG_NOTICE(( "physical memory map:\n" ));
 
   /* Map memory regions into guest physical memory */
 
-  for( ulong i=0UL; i<FDOS_PHYS_MAX; i++ ) {
+  for( ulong i=0UL; i<FDOS_PIDX_MAX; i++ ) {
     if( !env->phys[ i ].haddr ) continue;
     struct kvm_userspace_memory_region region = {
       .slot            = (uint)i,
@@ -67,7 +68,7 @@ main( int     argc,
       .memory_size     = env->phys[ i ].gpaddr1 - env->phys[ i ].gpaddr0,
       .userspace_addr  = env->phys[ i ].haddr
     };
-    fprintf( stderr, "  slot=%u phys=%#llx..%#llx userspace_addr=%p\n",
+    fprintf( stderr, "  slot=%u phys=%#010llx..%#010llx userspace_addr=%p\n",
              region.slot, region.guest_phys_addr, region.guest_phys_addr + region.memory_size, (void *)region.userspace_addr );
     if( FD_UNLIKELY( ioctl( vm_fd, KVM_SET_USER_MEMORY_REGION, &region )<0 ) ) {
       FD_LOG_ERR(( "KVM_SET_USER_MEMORY_REGION(slot=%u,guest_phys_addr=%#llx,memory_size=%#llx,userspace_addr=%p) failed (%i-%s)",

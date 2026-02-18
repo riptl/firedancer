@@ -3,7 +3,6 @@
 #include "fdos_kvm.h"
 #include "../fdos_vmm.h"
 #include "../x86/fd_x86_disasm.h"
-#include "../kern/fdos_kern_def.h"
 #include "fdos_env.h"
 #include <errno.h>
 #include <sys/ioctl.h> /* ioctl(2) */
@@ -26,51 +25,39 @@ gvaddr_to_haddr( fdos_env_t const * env,
   ulong gpaddr1 = gpaddr0 + sz;
 
   ulong phys;
-  for( phys=0UL; phys<FDOS_PHYS_MAX; phys++ ) {
+  for( phys=0UL; phys<FDOS_PIDX_MAX; phys++ ) {
     if( !!( gpaddr0>=env->phys[ phys ].gpaddr0 ) &
         !!( gpaddr1<=env->phys[ phys ].gpaddr1 ) ) {
       break;
     }
   }
-  if( FD_UNLIKELY( phys==FDOS_PHYS_MAX ) ) return NULL;
+  if( FD_UNLIKELY( phys==FDOS_PIDX_MAX ) ) return NULL;
 
   ulong off = gpaddr0 - env->phys[ phys ].gpaddr0;
   return (void *)( env->phys[ phys ].haddr + off );
 }
 
 static void
-hypercall_log( fdos_env_t * kern,
-               int          vcpu_fd,
-               ulong        level,
-               ulong        file_gvaddr,
-               ulong        line,
-               ulong        func_gvaddr,
-               ulong        msg_gvaddr ) {
-  static char const * color_level_cstr[] = {
-    /* 0 */ TEXT_NORMAL                                  "DEBUG  ",
-    /* 1 */ TEXT_BLUE                                    "INFO   " TEXT_NORMAL,
-    /* 2 */ TEXT_GREEN                                   "NOTICE " TEXT_NORMAL,
-    /* 3 */ TEXT_YELLOW                                  "WARNING" TEXT_NORMAL,
-    /* 4 */ TEXT_RED                                     "ERR    " TEXT_NORMAL,
-    /* 5 */ TEXT_RED TEXT_BOLD                           "CRIT   " TEXT_NORMAL,
-    /* 6 */ TEXT_RED TEXT_BOLD TEXT_UNDERLINE            "ALERT  " TEXT_NORMAL,
-    /* 7 */ TEXT_RED TEXT_BOLD TEXT_UNDERLINE TEXT_BLINK "EMERG  " TEXT_NORMAL
-  };
-
+hypercall_log( fdos_env_t *                kern,
+               int                         vcpu_fd,
+               fd_hypercall_args_t const * args ) {
   /* FIXME don't use cstr for translation ... stupid */
-  char const * file = (char const *)gvaddr_to_haddr( kern, file_gvaddr, 1UL );
-  char const * func = (char const *)gvaddr_to_haddr( kern, func_gvaddr, 1UL );
-  char const * msg  = (char const *)gvaddr_to_haddr( kern, msg_gvaddr,  1UL );
+  char const * file = (char const *)gvaddr_to_haddr( kern, args->log.file_gvaddr, args->log.file_len );
+  char const * func = (char const *)gvaddr_to_haddr( kern, args->log.func_gvaddr, args->log.func_len );
+  char const * msg  = (char const *)gvaddr_to_haddr( kern, args->log.msg_gvaddr,  args->log.msg_len  );
 
   struct kvm_sregs sregs;
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_SREGS, &sregs )<0 ) ) {
     FD_LOG_ERR(( "KVM_GET_REGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
 
-  FD_LOG_NOTICE(( "%s ring%d  %s(%lu)[%s]: %s",
-                  color_level_cstr[ level<sizeof(color_level_cstr)/sizeof(color_level_cstr[0]) ? level : 0 ],
-                  sregs.cs.dpl,
-                  file, line, func, msg ));
+  long now = fd_log_wallclock();
+  char   thread_backup[ FD_LOG_NAME_MAX ];
+  char * thread_name = (char *)fd_log_thread();
+  memcpy( thread_backup, thread_name, FD_LOG_NAME_MAX );
+  strcpy( thread_name, "kvm" );
+  fd_log_private_1( (int)args->log.level, now, file, (int)args->log.line, func, msg );
+  memcpy( thread_name, thread_backup, FD_LOG_NAME_MAX );
 }
 
 void
@@ -81,15 +68,10 @@ fdos_hypercall_handler( fdos_env_t *     env,
     FD_LOG_CRIT(( "invalid io_out hypercall (size=%u,count=%u)", run->io.size, run->io.count ));
   }
   fd_hypercall_args_t const * args = env->hyper_args;
-  uint  port = run->io.port;
-  ulong arg0 = FD_VOLATILE_CONST( args->arg[0] ); (void)arg0;
-  ulong arg1 = FD_VOLATILE_CONST( args->arg[1] ); (void)arg1;
-  ulong arg2 = FD_VOLATILE_CONST( args->arg[2] ); (void)arg2;
-  ulong arg3 = FD_VOLATILE_CONST( args->arg[3] ); (void)arg3;
-  ulong arg4 = FD_VOLATILE_CONST( args->arg[4] ); (void)arg4;
+  uint port = run->io.port;
   switch( port ) {
   case FDOS_HYPERCALL_LOG:
-    hypercall_log( env, vcpu_fd, arg0, arg1, arg2, arg3, arg4 );
+    hypercall_log( env, vcpu_fd, args );
     break;
   default:
     FD_LOG_CRIT(( "invalid hypercall port %u", port ));
