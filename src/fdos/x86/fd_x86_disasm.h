@@ -5,14 +5,14 @@
 
 #if FD_HAS_LIBLLVM
 
-#include "../../util/fd_util_base.h"
+#include "../fdos_vmm.h"
+#include "../host/fdos_env.h"
 
 char *
-fd_x86_disasm( char          str[ FD_X86_DISASM_MAX ],
-               ulong         rip,
-               uchar const * code,
-               ulong         code_sz,
-               ulong         code_base );
+fd_x86_disasm( fdos_vmm_alloc_t const * vmm,
+               fdos_phys_t const        phys[ FDOS_PIDX_MAX ],
+               char                     str[ FD_X86_DISASM_MAX ],
+               ulong                    rip );
 
 #endif /* FD_HAS_LIBLLVM */
 

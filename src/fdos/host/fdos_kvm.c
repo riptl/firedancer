@@ -96,11 +96,10 @@ trace_rip( fdos_env_t *     env,
 # if FD_HAS_LIBLLVM
   char dis_buf[ FD_X86_DISASM_MAX ];
   dis = fd_x86_disasm(
+      env->vmm_alloc,
+      env->phys,
       dis_buf,
-      rip,
-      (uchar const *)env->text.haddr,
-      env->text.sz,
-      env->text.gvaddr
+      rip
   );
   if( !dis ) dis = "                                        ";
 # endif
