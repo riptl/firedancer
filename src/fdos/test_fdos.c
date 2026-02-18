@@ -77,6 +77,31 @@ main( int     argc,
   }
   fputs( "\n", stderr );
 
+  /* Enable KVM_CAP_X86_TRIPLE_FAULT_EVENT */
+
+  if( ioctl( vm_fd, KVM_ENABLE_CAP, &(struct kvm_enable_cap) {
+      .cap = KVM_CAP_X86_TRIPLE_FAULT_EVENT
+  } )<0 ) {
+    FD_LOG_ERR(( "KVM_ENABLE_CAP(KVM_CAP_X86_TRIPLE_FAULT_EVENT) failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+
+  /* CPUID */
+
+# define CPUID_MAX 100
+  __attribute__((aligned(alignof(struct kvm_cpuid2)))) uchar cpuid_buf[ sizeof(struct kvm_cpuid2) + sizeof(struct kvm_cpuid_entry2) * CPUID_MAX ];
+  struct kvm_cpuid2 * cpuid = fd_type_pun( cpuid_buf );
+  memset( cpuid, 0, sizeof(cpuid_buf) );
+  cpuid->nent = CPUID_MAX;
+  if( FD_UNLIKELY( ioctl( kvm_fd, KVM_GET_SUPPORTED_CPUID, cpuid )<0 ) ) {
+    FD_LOG_ERR(( "KVM_GET_SUPPORTED_CPUID failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+
+  if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_CPUID2, cpuid )<0 ) ) {
+    FD_LOG_ERR(( "KVM_SET_CPUID2 failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+
+  /* GDT / IDT */
+
   struct kvm_sregs sregs[1];
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_SREGS, sregs )<0 ) ) {
     FD_LOG_ERR(( "KVM_GET_SREGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
@@ -88,9 +113,7 @@ main( int     argc,
 
   sregs->idt.base  = env->idt_gvaddr;
   sregs->idt.limit = (256 * sizeof(fd_x86_idt_gate_t)) - 1UL;
-
-  FD_LOG_NOTICE(( "gdt base=%#llx limit=%#x\nidt base=%#llx limit=%#x\n",
-                  sregs->gdt.base, sregs->gdt.limit, sregs->idt.base, sregs->idt.limit ));
+                  
   /* Segment descriptors */
 
   struct kvm_segment cs = {
@@ -126,7 +149,7 @@ main( int     argc,
 
   /* Wire up TSS */
 
-  sregs->tr.base     = env->tss_kern_gpaddr;
+  sregs->tr.base     = env->tss_kern_gvaddr;
   sregs->tr.limit    = sizeof(fd_x86_tss64_t)-1UL;
   sregs->tr.selector = 0x28;
   sregs->tr.type     = 0xb;
@@ -140,10 +163,13 @@ main( int     argc,
   /* Enable long mode */
 
   sregs->cr3 = (ulong)env->vmm_alloc->gpaddr;
+  FD_TEST( fd_ulong_is_aligned( sregs->cr3, FD_SHMEM_NORMAL_PAGE_SZ ) );
   sregs->cr4 =
       FD_X86_CR4_PAE |
       FD_X86_CR4_PGE |
-      FD_X86_CR4_OSFXSR;
+      FD_X86_CR4_OSFXSR |
+      FD_X86_CR4_FSGSBASE |
+      FD_X86_CR4_OSXSAVE;
 
   sregs->cr0 =
       FD_X86_CR0_PE |
@@ -162,6 +188,20 @@ main( int     argc,
 
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_SREGS, sregs )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_SREGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+
+  struct kvm_xcrs xcrs;
+  if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_XCRS, &xcrs )<0 ) ) {
+    FD_LOG_ERR(( "KVM_GET_XCRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+  for( ulong i=0UL; i<xcrs.nr_xcrs; i++ ) {
+    if( xcrs.xcrs[ i ].xcr==0 ) {
+      xcrs.xcrs[ i ].value |= FD_X86_XCR0_X87 | FD_X86_XCR0_SSE | FD_X86_XCR0_AVX;
+      break;
+    }
+  }
+  if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_XCRS, &xcrs )<0 ) ) {
+    FD_LOG_ERR(( "KVM_SET_XCRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
 
   /* Setup SYSCALL MSRs */

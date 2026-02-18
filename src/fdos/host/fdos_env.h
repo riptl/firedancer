@@ -47,8 +47,10 @@ struct fdos_env {
   fdos_vmm_alloc_t vmm_alloc[1];
 
   /* Kernel stack */
-  ulong   stack_kern_top_gvaddr;
-  ulong   stack_kern_sz;
+  ulong stack_kern_top_gvaddr;
+  ulong stack_kern_sz;
+  ulong stack_int_top_gvaddr;
+  ulong stack_int_sz;
 
   /* Kernel image */
   fdos_vmo_t text;
@@ -58,9 +60,7 @@ struct fdos_env {
 
   /* TSS (kernel, user) */
   fd_x86_tss64_t * tss_kern;
-  fd_x86_tss64_t * tss_user;
-  ulong            tss_kern_gpaddr;
-  ulong            tss_user_gpaddr;
+  ulong            tss_kern_gvaddr;
 
   /* GDT */
   ulong          gdt_gvaddr;
@@ -99,5 +99,9 @@ fdos_env_create( fdos_env_t *  env,
 
 void
 fdos_env_destroy( fdos_env_t * env );
+
+uchar *
+fdos_gpaddr_to_haddr( ulong             gpaddr,
+                      fdos_phys_t const phys[ FDOS_PIDX_MAX ] );
 
 #endif /* HEADER_fd_src_fdos_host_fdos_host_h */

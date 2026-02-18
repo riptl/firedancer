@@ -13,6 +13,7 @@ struct fdos_kern_args {
   ulong hyper_args_gvaddr;
   ulong stack_user_top_gvaddr;
   ulong ring3_entry_gvaddr;
+  ulong ring3_fs;
 };
 
 typedef struct fdos_kern_args fdos_kern_args_t;

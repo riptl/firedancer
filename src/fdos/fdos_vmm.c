@@ -78,9 +78,12 @@ fdos_env_map_pml2( ulong *            pml2,
       ulong off = fdos_vmm_alloc( alloc );
       pml2[ pml2e_idx ] = (alloc->gpaddr + off) | FD_X86_PT_P | table_flags;
     }
+    if( FD_UNLIKELY( pml2[ pml2e_idx ] & FD_X86_PT_PS ) ) {
+      FD_LOG_CRIT(( "attempt to map vaddr=%#lx failed, already occupied by a 2 MiB page", vaddr ));
+    }
     pml2[ pml2e_idx ] |= table_flags;
     ulong * pml1 = fdos_pt_gpaddr_to_haddr( alloc, fd_x86_mmu_paddr( pml2[ pml2e_idx ] ) );
-    fdos_env_map_pml1( pml1, vaddr, paddr, sz, flags );
+    fdos_env_map_pml1( pml1, vaddr, paddr, vaddr1-vaddr, flags );
   next:
     paddr += fd_ulong_align_up( vaddr+1UL, FD_X86_PML2E_RANGE ) - vaddr;
     vaddr  = fd_ulong_align_up( vaddr+1UL, FD_X86_PML2E_RANGE );
@@ -110,9 +113,12 @@ fdos_env_map_pml3( ulong *            pml3,
       ulong off = fdos_vmm_alloc( alloc );
       pml3[ pml3e_idx ] = (alloc->gpaddr + off) | FD_X86_PT_P | table_flags;
     }
+    if( FD_UNLIKELY( pml3[ pml3e_idx ] & FD_X86_PT_PS ) ) {
+      FD_LOG_CRIT(( "attempt to map vaddr=%#lx failed, already occupied by a 1 GiB page", vaddr ));
+    }
     pml3[ pml3e_idx ] |= table_flags;
     ulong * pml2 = fdos_pt_gpaddr_to_haddr( alloc, fd_x86_mmu_paddr( pml3[ pml3e_idx ] ) );
-    fdos_env_map_pml2( pml2, vaddr, paddr, sz, flags, alloc );
+    fdos_env_map_pml2( pml2, vaddr, paddr, vaddr1-vaddr, flags, alloc );
   next:
     paddr += fd_ulong_align_up( vaddr+1UL, FD_X86_PML3E_RANGE ) - vaddr;
     vaddr  = fd_ulong_align_up( vaddr+1UL, FD_X86_PML3E_RANGE );
@@ -136,9 +142,9 @@ fdos_env_map_pml4( ulong *            pml4,
     }
     pml4[ pml4e_idx ] |= table_flags;
     ulong * pml3 = fdos_pt_gpaddr_to_haddr( alloc, fd_x86_mmu_paddr( pml4[ pml4e_idx ] ) );
-    fdos_env_map_pml3( pml3, vaddr, paddr, sz, flags, alloc );
-    vaddr = fd_ulong_align_up( vaddr+1UL, FD_X86_PML4E_RANGE );
-    paddr = fd_ulong_align_up( paddr+1UL, FD_X86_PML4E_RANGE );
+    fdos_env_map_pml3( pml3, vaddr, paddr, vaddr1-vaddr, flags, alloc );
+    paddr += fd_ulong_align_up( vaddr+1UL, FD_X86_PML4E_RANGE ) - vaddr;
+    vaddr  = fd_ulong_align_up( vaddr+1UL, FD_X86_PML4E_RANGE );
   }
 }
 

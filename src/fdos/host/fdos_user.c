@@ -65,7 +65,7 @@ fdos_user_copy( fdos_phys_t *      phys,
     char * p = fgets( line, sizeof(line), file );
     if( !p ) break;
 
-    if( strstr( p, "[vvar]"     ) ) continue;
+    if( strstr( p, "[vvar"      ) ) continue;
     if( strstr( p, "[vdso]"     ) ) continue;
     if( strstr( p, "[vsyscall]" ) ) continue;
 

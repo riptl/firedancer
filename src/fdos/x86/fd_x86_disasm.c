@@ -2,25 +2,13 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/Disassembler.h>
+#include "../../util/fd_util.h"
 
-char *
-fd_x86_disasm( fdos_vmm_alloc_t const * vmm,
-               fdos_phys_t const        phys[ FDOS_PIDX_MAX ],
-               char                     str[ FD_X86_DISASM_MAX ],
-               ulong                    rip ) {
-  ulong gpaddr = fdos_gvaddr_to_gpaddr( rip, 1UL, vmm );
-  ulong phys_idx;
-  for( phys_idx=0UL; phys_idx<FDOS_PIDX_MAX; phys_idx++ ) {
-    if( !!( gpaddr>=phys[ phys_idx ].gpaddr0 ) &
-        !!( gpaddr< phys[ phys_idx ].gpaddr1 ) ) {
-      break;
-    }
-  }
-  if( phys_idx==FDOS_PIDX_MAX ) return NULL;
-
-  ulong   off  = gpaddr - phys[ phys_idx ].gpaddr0;
-  uchar * code = (uchar *)phys[ phys_idx ].haddr + off;
-  ulong   rem  = phys[ phys_idx ].gpaddr1 - gpaddr;
+ulong
+fd_x86_disasm( uchar const * code,
+               ulong         rem,
+               char          str[ FD_X86_DISASM_MAX ],
+               ulong         rip ) {
 
   static LLVMDisasmContextRef disasm_ctx;
   FD_THREAD_ONCE_BEGIN {
@@ -37,8 +25,8 @@ fd_x86_disasm( fdos_vmm_alloc_t const * vmm,
   }
   FD_THREAD_ONCE_END;
 
-  ulong cnt = LLVMDisasmInstruction( disasm_ctx, code, rem, rip, str, FD_X86_DISASM_MAX );
-  if( FD_UNLIKELY( cnt==0 ) ) return NULL;
+  ulong cnt = LLVMDisasmInstruction( disasm_ctx, (uchar *)code, rem, rip, str, FD_X86_DISASM_MAX );
+  if( FD_UNLIKELY( cnt==0 ) ) return 0UL;
 
   /* Count number of chars excluding ANSI control chars.
      Also, replace tabs with spaces. */
@@ -64,5 +52,5 @@ fd_x86_disasm( fdos_vmm_alloc_t const * vmm,
   }
   str[i] = '\0';
 
-  return str;
+  return cnt;
 }

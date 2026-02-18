@@ -11,6 +11,7 @@ $(call add-objs,host/fdos_user,fdos_host)
 ifdef FD_HAS_LIBLLVM
 $(call add-objs,x86/fd_x86_disasm,fdos_host)
 endif
+$(call add-objs,x86/fd_x86_idt,fdos_host)
 $(call make-bin,test_fdos,test_fdos,fdos_host fdos fd_util)
 $(call make-unit-test,test_vmm,test_vmm,fdos fd_util)
 

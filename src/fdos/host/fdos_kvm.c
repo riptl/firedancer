@@ -92,21 +92,54 @@ trace_rip( fdos_env_t *     env,
   }
   if( !rip ) rip = regs.rip;
 
+  uchar * code = NULL;
+  ulong   rem  = 0UL;
+
+  fdos_phys_t const * phys = env->phys;
+  ulong gpaddr = fdos_gvaddr_to_gpaddr( rip, 1UL, env->vmm_alloc );
+  for( ulong phys_idx=0UL; phys_idx<FDOS_PIDX_MAX; phys_idx++ ) {
+    if( !!( gpaddr>=phys[ phys_idx ].gpaddr0 ) &
+        !!( gpaddr< phys[ phys_idx ].gpaddr1 ) ) {
+      ulong off = gpaddr - phys[ phys_idx ].gpaddr0;
+      code = (uchar *)phys[ phys_idx ].haddr + off;
+      rem  = phys[ phys_idx ].gpaddr1 - gpaddr;
+    }
+  }
+
   char const * dis = "";
+  ulong        cnt = 0UL;
 # if FD_HAS_LIBLLVM
   char dis_buf[ FD_X86_DISASM_MAX ];
-  dis = fd_x86_disasm(
-      env->vmm_alloc,
-      env->phys,
-      dis_buf,
-      rip
-  );
-  if( !dis ) dis = "                                        ";
+  cnt = fd_x86_disasm( code, rem, dis_buf, rip );
+  if( cnt ) dis = dis_buf;
+  else      dis = "                                        ";
 # endif
 
-  FD_LOG_INFO(( "\033[2mrip=%016lx\033[0m %s \033[2mrsp=%16llx rax=%16llx rbx=%16llx rcx=%16llx rdx=%16llx rsi=%16llx rdi=%16llx\033[0m",
+  char hex[ 256 ];
+  char * p = fd_cstr_init( hex );
+  for( ulong i=0UL; i<cnt; i++ ) {
+    static char const hex_tbl[] = "0123456789abcdef";
+    p = fd_cstr_append_char( p, hex_tbl[ ( code[ i ] >> 4 ) & 0xf ] );
+    p = fd_cstr_append_char( p, hex_tbl[   code[ i ]        & 0xf ] );
+    p = fd_cstr_append_char( p, ' ' );
+  }
+  fd_cstr_fini( p );
+  ulong hex_len = (ulong)( p - hex );
+
+  FD_LOG_INFO(( "\033[2mrip=%016lx\033[0m %s \033[2mrsp=%16llx  %.*s\033[0m",
                 rip, dis,
-                regs.rsp, regs.rax, regs.rbx, regs.rcx, regs.rdx, regs.rsi, regs.rdi ));
+                regs.rsp,
+                (int)hex_len, hex ));
+}
+
+static void
+maybe_handle_interrupt( fdos_env_t * kern,
+                        ulong        rip ) {
+  ulong hlt0 = kern->text.gvaddr;
+  ulong hlt1 = hlt0 + 256;
+  if( FD_UNLIKELY( rip<hlt0 || rip>=hlt1 ) ) return;
+  uint idx = (uint)( rip - hlt0 );
+  FD_LOG_ERR(( "Caught interrupt type %02x-%s", idx, fd_x86_interrupt_cstr( idx ) ));
 }
 
 int
@@ -129,9 +162,17 @@ fdos_kvm_run( fdos_env_t *     kern,
     trace_rip( kern, kvm_run, vcpu_fd, kvm_run->debug.arch.pc );
     return 0;
   }
-  case KVM_EXIT_HLT:
+  case KVM_EXIT_HLT: {
+    struct kvm_regs regs;
+    if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_REGS, &regs )<0 ) ) {
+      FD_LOG_ERR(( "KVM_GET_REGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+    }
+    ulong rip = regs.rip - 1UL; /* why is this off by one? */
+    trace_rip( kern, kvm_run, vcpu_fd, rip );
+    maybe_handle_interrupt( kern, rip );
     FD_LOG_NOTICE(( "KVM guest issued HLT instruction" ));
     return 1;
+  }
   case KVM_EXIT_FAIL_ENTRY:
     FD_LOG_ERR(( "KVM guest failed to enter (hardware_entry_failure_reason=%#llx)", kvm_run->fail_entry.hardware_entry_failure_reason ));
   case KVM_EXIT_SHUTDOWN:

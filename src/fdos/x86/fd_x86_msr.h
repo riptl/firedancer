@@ -13,9 +13,11 @@
 #define FD_X86_CR0_CD (1U<<30)
 #define FD_X86_CR0_PG (1U<<31)
 
-#define FD_X86_CR4_PAE    (1U<<5)
-#define FD_X86_CR4_PGE    (1U<<7)
-#define FD_X86_CR4_OSFXSR (1U<<9)
+#define FD_X86_CR4_PAE      (1U<< 5)
+#define FD_X86_CR4_PGE      (1U<< 7)
+#define FD_X86_CR4_OSFXSR   (1U<< 9)
+#define FD_X86_CR4_FSGSBASE (1U<<16)
+#define FD_X86_CR4_OSXSAVE  (1U<<18)
 
 #define FD_X86_EFER_SCE (1U<< 0)
 #define FD_X86_EFER_LME (1U<< 8)
@@ -24,5 +26,9 @@
 
 #define FD_X86_MSR_STAR  0xc0000081
 #define FD_X86_MSR_LSTAR 0xc0000082
+
+#define FD_X86_XCR0_X87 (1U<<0)
+#define FD_X86_XCR0_SSE (1U<<1)
+#define FD_X86_XCR0_AVX (1U<<2)
 
 #endif /* HEADER_fd_src_fdos_x86_fd_x86_msr_h */

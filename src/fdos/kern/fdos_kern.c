@@ -102,8 +102,9 @@ typedef struct fd_jmp_buf fd_jmp_buf_t;
 fd_jmp_buf_t g_sysret;
 
 __attribute__((naked)) void
-enter_ring3( ulong user_stack_top_gpaddr,
-             ulong function ) {
+enter_ring3( ulong user_stack_top_gpaddr, /* rdi */
+             ulong function,              /* rsi */
+             ulong fs ) {                 /* rcx */
   __asm__ volatile (
       "pushq $0x23;\n" /* segment 4 */
       "pushq %rdi;\n"  /* user stack */
@@ -112,8 +113,7 @@ enter_ring3( ulong user_stack_top_gpaddr,
       "movl $0x23, %eax;\n"
       "movw %ax, %ds;\n"
       "movw %ax, %es;\n"
-      "movw %ax, %fs;\n"
-      "movw %ax, %gs;\n"
+      "wrfsbase %rdx;\n"
       "lretq;\n"
   );
 }
@@ -175,7 +175,7 @@ fdos_kern_main( fdos_kern_args_t * args ) {
 
   ulong const user_stack_top_gpaddr = args->stack_user_top_gvaddr-8UL;
   if( setjmp()==0 ) {
-    enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr );
+    enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr, args->ring3_fs );
   } else {
     FD_LOG_NOTICE(( "Returned from ring 3" ));
   }
