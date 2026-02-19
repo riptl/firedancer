@@ -8,8 +8,7 @@ $(error Embedded libc not found. Run ./deps.sh +embedded)
 endif
 
 CFLAGS+=\
-  -mcmodel=kernel \
-  -mfsgsbase
+  -mcmodel=kernel
 
 CPPFLAGS+=\
   -isystem opt/cross/x86/include \

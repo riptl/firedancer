@@ -20,6 +20,7 @@ main( int     argc,
   int flag_trace     = fd_env_strip_cmdline_contains( &argc, &argv, "--trace"           );
   int flag_dump_phys = fd_env_strip_cmdline_contains( &argc, &argv, "--dump-phys-table" );
   int flag_dump_pt   = fd_env_strip_cmdline_contains( &argc, &argv, "--dump-page-table" );
+  int flag_init_only = fd_env_strip_cmdline_contains( &argc, &argv, "--init-only"       );
 
   /* Create guest kernel data structures */
 
@@ -85,14 +86,15 @@ main( int     argc,
 
   /* Run */
 
-  FD_LOG_NOTICE(( "Running KVM guest" ));
-  for(;;) {
-    if( FD_UNLIKELY( 0!=fdos_kvm_run( env, kvm_run, vcpu_fd ) ) ) break;
+  if( !flag_init_only ) {
+    FD_LOG_NOTICE(( "Running KVM guest" ));
+    for(;;) {
+      if( FD_UNLIKELY( 0!=fdos_kvm_run( env, kvm_run, vcpu_fd ) ) ) break;
+    }
+    FD_LOG_NOTICE(( "Done" ));
   }
 
   /* Clean up */
-
-  FD_LOG_NOTICE(( "Cleaning up" ));
 
   if( FD_UNLIKELY( munmap( kvm_run, (ulong)mmap_size ) ) ) FD_LOG_ERR(( "munmap(kvm_run) failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   if( FD_UNLIKELY( close( vcpu_fd ) ) ) FD_LOG_ERR(( "close(vcpu) failed (%i-%s)",     errno, fd_io_strerror( errno ) ));

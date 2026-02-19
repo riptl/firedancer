@@ -9,6 +9,9 @@ fdos_user_entrypoint( void );
 
 /* Userland symbol overrides */
 
+__attribute__((noreturn)) void
+fdos_user_exit_group( int status );
+
 ssize_t
 fdos_user_write( int          fd,
                  void const * buf,

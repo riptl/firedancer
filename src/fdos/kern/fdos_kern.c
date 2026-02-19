@@ -7,63 +7,14 @@
 #include <stdarg.h>
 #include <immintrin.h>
 
-__attribute__((naked))
 __attribute__((section(".text.hlt")))
+__attribute__((naked))
 void
 hlt_blob( void ) {
   __asm__ volatile (".space 256, 0xf4");
 }
 
-/* fd_util system environment *****************************************/
-
-static fd_pvclock_t * g_pvclock;
-
-void
-fd_log_flush( void ) {}
-
-int
-fd_io_write( int          fd,
-             void const * src,
-             ulong        src_min,
-             ulong        src_max,
-             ulong *      _src_sz ) {
-  (void)src_min;
-  fdos_hypercall_write( fd, src, src_max );
-  *_src_sz = src_max; /* FIXME error handling */
-  return 0;       
-}
-
-/* Context switching **************************************************/
-
-__attribute__((naked,noreturn)) void
-longjmp( void ) {
-  __asm__ volatile (
-      "movabsq $g_sysret, %rdi;\n"
-      "movq (%rdi), %rbx;\n"
-      "movq 8(%rdi), %rbp;\n"
-      "movq 16(%rdi), %r12;\n"
-      "movq 24(%rdi), %r13;\n"
-      "movq 32(%rdi), %r14;\n"
-      "movq 40(%rdi), %r15;\n"
-      "movq 48(%rdi), %rsp;\n"
-      "jmp *56(%rdi);\n"
-  );
-}
-
-ulong
-syscall_handler1( ulong arg0,
-                  ulong arg1,
-                  ulong arg2,
-                  uint  num ) {
-  (void)arg0; (void)arg1; (void)arg2;
-  switch( num ) {
-  case 231: /* exit_group */
-    longjmp();
-  default:
-    FD_LOG_CRIT(( "unsupported syscall %u", num ));
-  }
-}
-
+__attribute__((section(".text.syscall")))
 __attribute__((naked)) void
 syscall_handler( void ) {
   __asm__ volatile (
@@ -103,6 +54,56 @@ syscall_handler( void ) {
       "add $128, %rsp;\n"
       "sysretq;\n"
   );
+}
+
+/* fd_util system environment *****************************************/
+
+static fd_pvclock_t * g_pvclock;
+
+void
+fd_log_flush( void ) {}
+
+int
+fd_io_write( int          fd,
+             void const * src,
+             ulong        src_min,
+             ulong        src_max,
+             ulong *      _src_sz ) {
+  (void)src_min;
+  fdos_hypercall_write( fd, src, src_max );
+  *_src_sz = src_max; /* FIXME error handling */
+  return 0;
+}
+
+/* Context switching **************************************************/
+
+__attribute__((naked,noreturn)) void
+longjmp( void ) {
+  __asm__ volatile (
+      "movabsq $g_sysret, %rdi;\n"
+      "movq (%rdi), %rbx;\n"
+      "movq 8(%rdi), %rbp;\n"
+      "movq 16(%rdi), %r12;\n"
+      "movq 24(%rdi), %r13;\n"
+      "movq 32(%rdi), %r14;\n"
+      "movq 40(%rdi), %r15;\n"
+      "movq 48(%rdi), %rsp;\n"
+      "jmp *56(%rdi);\n"
+  );
+}
+
+ulong
+syscall_handler1( ulong arg0,
+                  ulong arg1,
+                  ulong arg2,
+                  uint  num ) {
+  (void)arg0; (void)arg1; (void)arg2;
+  switch( num ) {
+  case 231: /* exit_group */
+    longjmp();
+  default:
+    FD_LOG_CRIT(( "unsupported syscall %u", num ));
+  }
 }
 
 struct fd_jmp_buf {
@@ -154,19 +155,6 @@ setjmp( void ) {
   );
 }
 
-static void
-setup_lstar( void ) {
-  __asm__ volatile (
-      "movl $0xc0000082, %%ecx;\n"
-      "movq $syscall_handler, %%rax;\n"
-      "movq %%rax, %%rdx;\n"
-      "shrq $32, %%rdx;\n"
-      "wrmsr;\n"
-      :
-      : : "rax", "rcx", "rdx", "memory"
-  );
-}
-
 __attribute__((naked)) static void
 ring3_end( void ) {
   __asm__ volatile (
@@ -184,12 +172,7 @@ fdos_kern_main( fdos_kern_args_t * args ) {
   fd_log_wallclock_set( fd_pvclock_now, g_pvclock );
   fd_log_colorize_set( 1 );
 
-  _writefsbase_u64( args->ring3_fs );
-
   FD_LOG_NOTICE(( "Hello world!" ));
-
-  setup_lstar();
-
   ulong const user_stack_top_gpaddr = args->stack_user_top_gvaddr-8UL;
   FD_STORE( ulong, (void *)user_stack_top_gpaddr, (ulong)ring3_end );
   if( setjmp()==0 ) {
@@ -197,6 +180,17 @@ fdos_kern_main( fdos_kern_args_t * args ) {
   } else {
     FD_LOG_NOTICE(( "Returned from ring 3" ));
   }
+
+  FD_LOG_NOTICE(( "Benchmarking" ));
+  long dt = -fd_log_wallclock();
+  ulong iter = (ulong)1e7;
+  for( ulong i=0UL; i<iter; i++ ) {
+    if( setjmp()==0 ) {
+      enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr );
+    }
+  }
+  dt += fd_log_wallclock();
+  FD_LOG_NOTICE(( "Context switching: %lu ns/iter", (ulong)( (double)dt/(double)iter ) ));
 
   FD_LOG_ERR(( "Goodbye" ));
 }

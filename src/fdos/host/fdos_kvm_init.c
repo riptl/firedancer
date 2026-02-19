@@ -152,21 +152,31 @@ vcpu_msrs_set( fdos_env_t * env,
   uchar msrs_buf[ sizeof(struct kvm_msrs) + 2*sizeof(struct kvm_msr_entry) ];
 
   struct kvm_msrs * msr_req = fd_type_pun( msrs_buf );
-  msr_req->nmsrs = 3;
+  msr_req->nmsrs = 5;
+
+  /* FS base */
+
+  ulong fs0; __asm__ ( "movq %%fs:0x0, %0" : "=r"(fs0) );
+  msr_req->entries[0].index = FD_X86_MSR_FSBASE;
+  msr_req->entries[0].data  = fs0;
 
   /* SYSCALL configuration */
 
   ulong msr_star = ((ulong)0x08 << 3) | /* kernel CS */
                    ((ulong)0x18 << 3);  /* user CS */
-  msr_req->entries[0].index = FD_X86_MSR_STAR;
-  msr_req->entries[0].data  = msr_star;
+  msr_req->entries[1].index = FD_X86_MSR_STAR;
+  msr_req->entries[1].data  = msr_star;
+
+  ulong msr_lstar = env->text.gvaddr + 256UL;
+  msr_req->entries[2].index = FD_X86_MSR_LSTAR;
+  msr_req->entries[2].data  = msr_lstar;
 
   /* KVM clock */
 
-  msr_req->entries[1].index = FD_X86_MSR_PVCLOCK_EPOCH;
-  msr_req->entries[1].data  = env->pvclock_gpaddr;
-  msr_req->entries[2].index = FD_X86_MSR_PVCLOCK_OFF;
-  msr_req->entries[2].data  = (env->pvclock_gpaddr + offsetof(fd_pvclock_t, off)) | 1UL;
+  msr_req->entries[3].index = FD_X86_MSR_PVCLOCK_EPOCH;
+  msr_req->entries[3].data  = env->pvclock_gpaddr;
+  msr_req->entries[4].index = FD_X86_MSR_PVCLOCK_OFF;
+  msr_req->entries[4].data  = (env->pvclock_gpaddr + offsetof(fd_pvclock_t, off)) | 1UL;
 
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_MSRS, msr_req )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_MSRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));

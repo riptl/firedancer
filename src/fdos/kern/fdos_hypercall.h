@@ -12,7 +12,6 @@
 struct fdos_kern_args {
   ulong stack_user_top_gvaddr;
   ulong ring3_entry_gvaddr;
-  ulong ring3_fs;
   ulong pvclock_gvaddr;
 };
 

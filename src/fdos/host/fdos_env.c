@@ -170,9 +170,7 @@ fdos_env_shared( fdos_env_t * env ) {
   memset( env->entry_args, 0, sizeof(fdos_kern_args_t) );
   fdos_kern_args_t * entry_args = env->entry_args;
 
-  ulong rsp; __asm__ ( "mov %%rsp, %0"      : "=r"(rsp) );
-  ulong fs;  __asm__ ( "movq %%fs:0x0, %0"  : "=r"(fs)  );
-  entry_args->ring3_fs              = fs;
+  ulong rsp; __asm__ ( "mov %%rsp, %0" : "=r"(rsp) );
   entry_args->stack_user_top_gvaddr = rsp;
   entry_args->ring3_entry_gvaddr    = (ulong)fdos_user_entrypoint;
 }

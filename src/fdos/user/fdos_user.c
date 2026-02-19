@@ -4,6 +4,17 @@
 #include "../fdos_pvclock.h"
 #include "../../util/fd_util.h"
 
+__attribute__((noreturn)) void
+fdos_user_exit_group( int status ) {
+  __asm__ volatile (
+      "mov $231, %%eax;\n"
+      "syscall;\n"
+      "ud2;\n"
+      :: "D" (status)
+  );
+  __builtin_unreachable();
+}
+
 ssize_t
 fdos_user_write( int          fd,
                  void const * buf,
@@ -27,7 +38,10 @@ fdos_user_clock_gettime( clockid_t         clock_id,
 
 void
 fdos_user_entrypoint( void ) {
-  fd_log_private_logfile_fd_set( 3 );
-  fd_log_thread_set( "kvm3" );
-  FD_LOG_NOTICE(( "HELLO" ));
+  FD_ONCE_BEGIN {
+    fd_log_private_logfile_fd_set( 3 );
+    fd_log_thread_set( "kvm3" );
+    FD_LOG_NOTICE(( "HELLO" ));
+  }
+  FD_ONCE_END;
 }

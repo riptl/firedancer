@@ -32,6 +32,7 @@
 
 #define FD_X86_MSR_STAR          0xc0000081
 #define FD_X86_MSR_LSTAR         0xc0000082
+#define FD_X86_MSR_FSBASE        0xc0000100
 #define FD_X86_MSR_PVCLOCK_EPOCH 0x4b564d00
 #define FD_X86_MSR_PVCLOCK_OFF   0x4b564d01
 

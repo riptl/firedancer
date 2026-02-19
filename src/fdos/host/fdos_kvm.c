@@ -105,6 +105,8 @@ trace_rip( fdos_env_t *     env,
   cnt = fd_x86_disasm( code, rem, dis_buf, rip );
   if( cnt ) dis = dis_buf;
   else      dis = "                                        ";
+# else
+  (void)rem;
 # endif
 
   char hex[ 256 ];

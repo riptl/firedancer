@@ -14,6 +14,7 @@ SECTIONS
 
   .text : AT(ADDR(.text) - 0xffffffff80000000) {
     *(.text.hlt)
+    *(.text.syscall)
     *(.text)
     . = ALIGN(4K);
   } :CODE
