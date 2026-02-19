@@ -167,9 +167,6 @@ ring3_enter( ulong user_stack_top_gpaddr, /* rdi */
       "pushq %rdi;\n"  /* user stack */
       "pushq $0x1b;\n" /* segment 3 */
       "pushq %rsi;\n"
-      "movl $0x23, %eax;\n"
-      "movw %ax, %ds;\n"
-      "movw %ax, %es;\n"
       "lretq;\n"
   );
 }
