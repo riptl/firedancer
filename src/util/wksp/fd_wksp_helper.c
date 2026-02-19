@@ -239,7 +239,7 @@ fd_wksp_new_anon( char const *  name,
 
   /* Format the memory as wksp */
 
-  void* shwksp = fd_wksp_new( shmem, name, seed, part_max, data_max ); /* logs details */
+  void * shwksp = fd_wksp_new( shmem, name, seed, part_max, data_max ); /* logs details */
   if( FD_UNLIKELY( !shwksp ) ) {
     fd_shmem_release( shmem, page_sz, page_cnt ); /* logs details */
     return NULL;

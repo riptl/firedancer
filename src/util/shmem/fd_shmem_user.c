@@ -11,6 +11,9 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/random.h>
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
 
 /* fd_shmem_private_key converts the cstr pointed to by name into a
    valid key and stores it at the location pointed to by key assumed
@@ -284,6 +287,17 @@ fd_shmem_join( char const *               name,
   join_info->join    = join;
 
   if( opt_info ) *opt_info = *join_info;
+
+  /* Label the region in /proc/pid/maps */
+
+# if defined(PR_SET_VMA) && defined(PR_SET_VMA_ANON_NAME)
+  if( FD_UNLIKELY( prctl( PR_SET_VMA, PR_SET_VMA_ANON_NAME, (ulong)shmem, page_sz*page_cnt, name ) ) ) {
+    if( errno!=EINVAL ) {  /* EINVAL implies that kernel is too old */
+      FD_LOG_WARNING(( "prctl(PR_SET_VMA,PR_SET_VMA_ANON_NAME,mem=%p,sz=%lu,name=\"%s\") failed (%i-%s)", shmem, page_sz*page_cnt, name, errno, fd_io_strerror( errno ) ));
+    }
+  }
+# endif
+
   FD_SHMEM_UNLOCK;
   return join;
 }
@@ -516,6 +530,16 @@ fd_shmem_join_anonymous( char const * name,
   /* join_info->hash handled by insert */
   /* join_info->name "                 */
   /* join_info->key  "                 */
+
+  /* Label the region in /proc/pid/maps */
+
+# if defined(PR_SET_VMA) && defined(PR_SET_VMA_ANON_NAME)
+  if( FD_UNLIKELY( prctl( PR_SET_VMA, PR_SET_VMA_ANON_NAME, (ulong)mem, page_sz*page_cnt, name ) ) ) {
+    if( errno!=EINVAL ) {  /* EINVAL implies that kernel is too old */
+      FD_LOG_WARNING(( "prctl(PR_SET_VMA,PR_SET_VMA_ANON_NAME,mem=%p,sz=%lu,name=\"%s\") failed (%i-%s)", mem, page_sz*page_cnt, name, errno, fd_io_strerror( errno ) ));
+    }
+  }
+# endif
 
   FD_SHMEM_UNLOCK;
   return 0;
