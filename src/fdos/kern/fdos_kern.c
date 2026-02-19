@@ -79,32 +79,7 @@ fd_io_write( int          fd,
 
 /* Context switching **************************************************/
 
-__attribute__((aligned(64))) ulong g_save[ 4096 ];
-
-// __attribute__((naked)) uint
-// setjmp_xsave( void ) {
-//   __asm__ volatile (
-//       "movabsq $g_save, %rdi;\n"
-//       "leaq 8(%rsp), %rdx;\n"
-//       "movq %rdx, 0(%rdi);\n"   /* g_save[0] -> stack pointer after return */
-//       "movq (%rsp), %rdx;\n"
-//       "movq %rdx, 8(%rdi);\n"   /* g_save[1] -> return address */
-//       "xor %eax, %eax;\n"
-//       "xor %edx, %edx;\n"
-//       "xsaveoptq 64(%rdi);\n"
-//       "retq;\n"
-//   );
-// }
-
-// __attribute__((naked,noreturn)) void
-// longjmp_xsave( void ) {
-//   __asm__ volatile (
-//       "movabsq $g_save, %rdi;\n"
-//       "xrstorq 64(%rdi);\n"
-//       "movq 0(%rdi), %rsp;\n"  /* restore stack pointer  */
-//       "jmp *8(%rdi);\n"        /* jump to return address */
-//   );
-// }
+__attribute__((aligned(64))) ulong g_save[ 128 ];
 
 __attribute__((naked)) uint
 setjmp( void ) {
