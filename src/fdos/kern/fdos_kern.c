@@ -20,41 +20,7 @@ syscall_handler( void ) {
   __asm__ volatile (
       "cmp $231, %eax;\n"
       "je longjmp;\n"
-      "sub $128, %rsp;\n"
-      /* This is probably a bit overkill */
-      "pushq %rbp;\n"
-      "pushq %rdi;\n"
-      "pushq %rsi;\n"
-      "pushq %rbx;\n"
-      "pushq %rcx;\n"
-      "pushq %rdx;\n"
-      "pushq %r8;\n"
-      "pushq %r9;\n"
-      "pushq %r10;\n"
-      "pushq %r12;\n"
-      "pushq %r13;\n"
-      "pushq %r14;\n"
-      "pushq %r15;\n"
-      "movq %rax, %rcx;\n"
-      "movq %rsp, %rbp;\n"
-      "and $-16, %rsp;\n"
-      "callq syscall_handler1;\n"
-      "movq %rbp, %rsp;\n"
-      "popq %r15;\n"
-      "popq %r14;\n"
-      "popq %r13;\n"
-      "popq %r12;\n"
-      "popq %r10;\n"
-      "popq %r9;\n"
-      "popq %r8;\n"
-      "popq %rdx;\n"
-      "popq %rcx;\n"
-      "popq %rbx;\n"
-      "popq %rsi;\n"
-      "popq %rdi;\n"
-      "popq %rbp;\n"
-      "add $128, %rsp;\n"
-      "sysretq;\n"
+      "ud2;\n"
   );
 }
 
@@ -113,23 +79,6 @@ longjmp( void ) {
       "movq 48(%rdi), %rsp;\n"
       "jmp *56(%rdi);\n"
   );
-}
-
-ulong
-syscall_handler1( ulong arg0,
-                  ulong arg1,
-                  ulong arg2,
-                  uint  num ) {
-  (void)arg2;
-  switch( num ) {
-  case 231: /* exit_group */
-    longjmp();
-  case 257: /* openat */
-    /* FIXME validate arg1 pointer */
-    FD_LOG_CRIT(( "rejected userland syscall 'openat(%d,%s)', aborting", (int)arg0, (char const *)arg1 ));
-  default:
-    FD_LOG_CRIT(( "unsupported syscall %u", num ));
-  }
 }
 
 /* ring3 API */
