@@ -1,9 +1,12 @@
 #include "fdos_migrate.h"
+#include "../user/fdos_user.h"
 #include "../x86/fd_x86_mmu.h"
+#include "fdos_env.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 
 static ulong
 copy_range( fdos_phys_t *      phys,
@@ -49,9 +52,9 @@ copy_range( fdos_phys_t *      phys,
   return fd_ulong_align_up( off1, FD_SHMEM_NORMAL_PAGE_SZ );
 }
 
-void
-fdos_migrate_self( fdos_phys_t *      phys,
-                   fdos_vmm_alloc_t * alloc ) {
+static void
+copy_vmm( fdos_phys_t *      phys,
+          fdos_vmm_alloc_t * alloc ) {
   ulong * pml4 = (ulong *)alloc->haddr;
 
   FILE * file = fopen( "/proc/self/maps", "r" );
@@ -87,4 +90,29 @@ fdos_migrate_self( fdos_phys_t *      phys,
   }
 
   fclose( file );
+}
+
+static void
+patch_trampoline( fdos_env_t * env,
+                  ulong        gvaddr,
+                  ulong        new_func ) {
+  uchar patch[] = {
+    0x48, 0xb8, /* movabs rax, imm64 */
+    0,0,0,0,0,0,0,0, /* imm64 placeholder */
+    0xff, 0xe0  /* jmp rax */
+  };
+  FD_STORE( ulong, patch+2, new_func );
+
+  ulong gpaddr = fdos_gvaddr_to_gpaddr( gvaddr, sizeof(patch), env->vmm_alloc );
+  FD_TEST( gpaddr );
+  uchar * haddr = fdos_gpaddr_to_haddr( gpaddr, sizeof(patch), env->phys );
+  FD_TEST( haddr );
+  fd_memcpy( haddr, patch, sizeof(patch) );
+}
+
+void
+fdos_migrate_self( fdos_env_t * env ) {
+  copy_vmm( &env->phys[ FDOS_PIDX_USER_MEM ], env->vmm_alloc );
+  patch_trampoline( env, (ulong)write,         (ulong)fdos_user_write         );
+  patch_trampoline( env, (ulong)clock_gettime, (ulong)fdos_user_clock_gettime );
 }

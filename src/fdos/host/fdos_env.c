@@ -10,12 +10,11 @@
 #include "fdos_env.h"
 #include "fdos_migrate.h"
 #include "../kern/fdos_kern_def.h"
+#include "../user/fdos_user.h"
 #include "../x86/fd_x86_mmu.h"
 #include "../fdos_vmm.h"
 #include "../fdos_pvclock.h"
-#include <errno.h>
 #include <unistd.h>
-#include <time.h>
 
 /* fdos_env_tss sets up a dummy Task State Segment */
 
@@ -158,50 +157,6 @@ fdos_env_idt( fdos_env_t * env ) {
   env->idt        = idt;
 }
 
-static ssize_t
-write_kvm( int          fd,
-           void const * buf,
-           size_t       count ) {
-  fdos_hypercall_write( fd, buf, count );
-  return (ssize_t)count; /* FIXME error handling */
-}
-
-static int
-clock_gettime_kvm( clockid_t         clock_id,
-                   struct timespec * tp ) {
-  if( FD_UNLIKELY( clock_id!=CLOCK_REALTIME ) ) __asm__ ("hlt");
-  fd_pvclock_t * pvclock = (fd_pvclock_t *)FDOS_GVADDR_USER_GVCLOCK;
-  long wallclock = fd_pvclock_now( pvclock );
-  tp->tv_sec  = wallclock / 1000000000L;
-  tp->tv_nsec = wallclock % 1000000000L;
-  return 0;
-}
-
-static void
-patch_trampoline( fdos_env_t * env,
-                  ulong        gvaddr,
-                  ulong        new_func ) {
-  uchar patch[] = {
-    0x48, 0xb8, /* movabs rax, imm64 */
-    0,0,0,0,0,0,0,0, /* imm64 placeholder */
-    0xff, 0xe0  /* jmp rax */
-  };
-  FD_STORE( ulong, patch+2, new_func );
-
-  ulong gpaddr = fdos_gvaddr_to_gpaddr( gvaddr, sizeof(patch), env->vmm_alloc );
-  FD_TEST( gpaddr );
-  uchar * haddr = fdos_gpaddr_to_haddr( gpaddr, sizeof(patch), env->phys );
-  FD_TEST( haddr );
-  fd_memcpy( haddr, patch, sizeof(patch) );
-}
-
-static void
-ring3_hello( void ) {
-  fd_log_private_logfile_fd_set( 3 );
-  fd_log_thread_set( "kvm3" );
-  FD_LOG_NOTICE(( "HELLO" ));
-}
-
 /* fdos_env_shared sets up interop shared data structures between the
    host and the guest kernel. */
 
@@ -219,7 +174,7 @@ fdos_env_shared( fdos_env_t * env ) {
   ulong fs;  __asm__ ( "movq %%fs:0x0, %0"  : "=r"(fs)  );
   entry_args->ring3_fs              = fs;
   entry_args->stack_user_top_gvaddr = rsp;
-  entry_args->ring3_entry_gvaddr    = (ulong)ring3_hello;
+  entry_args->ring3_entry_gvaddr    = (ulong)fdos_user_entrypoint;
 }
 
 /* fdos_env_ring0_setup sets up various dynamic x86 data structures and
@@ -244,8 +199,15 @@ fdos_env_clock_setup( fdos_env_t * env ) {
   env->pvclock_kern_gvaddr = FDOS_GVADDR_KERN_HEAP + pvclock_gaddr;
   env->pvclock_user_gvaddr = FDOS_GVADDR_USER_GVCLOCK;
   env->entry_args->pvclock_gvaddr = env->pvclock_kern_gvaddr;
-  patch_trampoline( env, (ulong)write,         (ulong)write_kvm         );
-  patch_trampoline( env, (ulong)clock_gettime, (ulong)clock_gettime_kvm );
+
+  fdos_vmm_map_range(
+      env->pml4,
+      FDOS_GVADDR_USER_GVCLOCK,
+      env->pvclock_gpaddr,
+      FD_SHMEM_NORMAL_PAGE_SZ,
+      FD_X86_PT_G|FD_X86_PT_US|FD_X86_PT_XD,
+      env->vmm_alloc
+  );
 }
 
 static void
@@ -327,6 +289,7 @@ fdos_env_create( fdos_env_t *  env,
 
   /* Set up kernel data structures */
   fdos_env_ring0_setup( env );
+  fdos_env_clock_setup( env );
 
   /* Set up physical memory mappings */
   phys_map_wksp ( env, FDOS_PIDX_KERN_HEAP,   FDOS_GPADDR_KERN_HEAP,  env->wksp_kern_heap  );
@@ -336,20 +299,7 @@ fdos_env_create( fdos_env_t *  env,
   phys_map_range( env, FDOS_PIDX_KERN_DATA,   env->data.gpaddr,       env->data.haddr,   env->data.sz   );
   phys_map_wksp ( env, FDOS_PIDX_USER_MEM,    FDOS_GPADDR_USER_MEM,   env->wksp_user_mem   );
 
-  /* Migrate current userland into VM */
-  FD_LOG_NOTICE(( "Migrating userland" ));
-  fdos_migrate_self( &env->phys[ FDOS_PIDX_USER_MEM ], env->vmm_alloc );
-
-  /* Set up clock */
-  fdos_env_clock_setup( env );
-  fdos_vmm_map_range(
-      pml4,
-      FDOS_GVADDR_USER_GVCLOCK,
-      env->pvclock_gpaddr,
-      FD_SHMEM_NORMAL_PAGE_SZ,
-      FD_X86_PT_G|FD_X86_PT_US|FD_X86_PT_XD,
-      env->vmm_alloc
-  );
+  fdos_migrate_self( env );
 
   return env;
 }
