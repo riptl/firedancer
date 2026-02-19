@@ -1,4 +1,4 @@
-#include "fdos_user.h"
+#include "fdos_migrate.h"
 #include "../x86/fd_x86_mmu.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -50,8 +50,8 @@ copy_range( fdos_phys_t *      phys,
 }
 
 void
-fdos_user_copy( fdos_phys_t *      phys,
-                fdos_vmm_alloc_t * alloc ) {
+fdos_migrate_self( fdos_phys_t *      phys,
+                   fdos_vmm_alloc_t * alloc ) {
   ulong * pml4 = (ulong *)alloc->haddr;
 
   FILE * file = fopen( "/proc/self/maps", "r" );

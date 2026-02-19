@@ -8,7 +8,7 @@
    long mode, or switching between different address spaces). */
 
 #include "fdos_env.h"
-#include "fdos_user.h"
+#include "fdos_migrate.h"
 #include "../kern/fdos_kern_def.h"
 #include "../x86/fd_x86_mmu.h"
 #include "../fdos_vmm.h"
@@ -338,7 +338,7 @@ fdos_env_create( fdos_env_t *  env,
 
   /* Migrate current userland into VM */
   FD_LOG_NOTICE(( "Migrating userland" ));
-  fdos_user_copy( &env->phys[ FDOS_PIDX_USER_MEM ], env->vmm_alloc );
+  fdos_migrate_self( &env->phys[ FDOS_PIDX_USER_MEM ], env->vmm_alloc );
 
   /* Set up clock */
   fdos_env_clock_setup( env );
