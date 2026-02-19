@@ -43,9 +43,9 @@ struct fdos_env {
   /* Physical memory mappings */
   fdos_phys_t phys[ FDOS_PIDX_MAX ];
 
-  /* Page tables
-     First page is PML4, various other pages follow */
+  /* Page tables */
   fdos_vmm_alloc_t vmm_alloc[1];
+  ulong *          pml4;
 
   /* Kernel stack */
   ulong stack_kern_top_gvaddr;
@@ -83,6 +83,11 @@ struct fdos_env {
   ulong          pvclock_gpaddr;
   ulong          pvclock_kern_gvaddr;
   ulong          pvclock_user_gvaddr;
+
+  /* Trace mode */
+# define FDOS_TRACE_MODE_OFF 0
+# define FDOS_TRACE_MODE_RIP 1
+  int trace_mode;
 };
 
 typedef struct fdos_env fdos_env_t;
@@ -105,6 +110,7 @@ fdos_env_destroy( fdos_env_t * env );
 
 uchar *
 fdos_gpaddr_to_haddr( ulong             gpaddr,
+                      ulong             sz,
                       fdos_phys_t const phys[ FDOS_PIDX_MAX ] );
 
 #endif /* HEADER_fd_src_fdos_host_fdos_host_h */

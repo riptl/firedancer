@@ -22,7 +22,7 @@
 static void
 fdos_env_tss( fdos_env_t * env ) {
   ulong tss_kern_gaddr = fd_wksp_alloc( env->wksp_kern_heap, 16UL, sizeof(fd_x86_tss64_t), 1UL );
-  FD_TEST( tss_kern_gaddr ); 
+  FD_TEST( tss_kern_gaddr );
 
   fd_x86_tss64_t * tss_kern = fd_wksp_laddr_fast( env->wksp_kern_heap, tss_kern_gaddr );
 
@@ -141,7 +141,7 @@ fdos_env_idt( fdos_env_t * env ) {
   ulong               idt_gaddr  = fd_wksp_alloc( env->wksp_kern_heap, 16UL, 256*sizeof(fd_x86_idt_gate_t), 1UL );
   FD_TEST( idt_gaddr );
   ulong               idt_gvaddr = FDOS_GVADDR_KERN_HEAP + idt_gaddr;
-  fd_x86_idt_gate_t * idt        = fd_wksp_laddr_fast( env->wksp_kern_heap, idt_gaddr );  
+  fd_x86_idt_gate_t * idt        = fd_wksp_laddr_fast( env->wksp_kern_heap, idt_gaddr );
   for( ulong i=0UL; i<256UL; i++ ) {
     ulong gvaddr = env->text.gvaddr + i;
     idt[ i ] = (fd_x86_idt_gate_t) {
@@ -159,7 +159,7 @@ fdos_env_idt( fdos_env_t * env ) {
 }
 
 static ssize_t
-write_kvm( int          fd, 
+write_kvm( int          fd,
            void const * buf,
            size_t       count ) {
   fdos_hypercall_write( fd, buf, count );
@@ -190,7 +190,7 @@ patch_trampoline( fdos_env_t * env,
 
   ulong gpaddr = fdos_gvaddr_to_gpaddr( gvaddr, sizeof(patch), env->vmm_alloc );
   FD_TEST( gpaddr );
-  uchar * haddr = fdos_gpaddr_to_haddr( gpaddr, env->phys );
+  uchar * haddr = fdos_gpaddr_to_haddr( gpaddr, sizeof(patch), env->phys );
   FD_TEST( haddr );
   fd_memcpy( haddr, patch, sizeof(patch) );
 }
@@ -307,7 +307,7 @@ fdos_env_create( fdos_env_t *  env,
   fdos_env_img_load( env, kern_bin, kern_bin_sz );
 
   /* Set up additional virtual memory mappings */
-  ulong * pml4 = (ulong *)env->vmm_alloc->haddr;
+  ulong * pml4 = env->pml4 = (ulong *)env->vmm_alloc->haddr;
   fdos_vmm_map_range(
       pml4,
       FDOS_GVADDR_KERN_HEAP,
@@ -364,6 +364,7 @@ fdos_env_destroy( fdos_env_t * env ) {
 
 uchar *
 fdos_gpaddr_to_haddr( ulong             gpaddr,
+                      ulong             sz,
                       fdos_phys_t const phys[ FDOS_PIDX_MAX ] ) {
   ulong phys_idx;
   for( phys_idx=0UL; phys_idx<FDOS_PIDX_MAX; phys_idx++ ) {
@@ -372,8 +373,11 @@ fdos_gpaddr_to_haddr( ulong             gpaddr,
       break;
     }
   }
-  if( phys_idx==FDOS_PIDX_MAX ) return NULL;     
+  if( phys_idx==FDOS_PIDX_MAX ) return NULL;
 
   ulong off = gpaddr - phys[ phys_idx ].gpaddr0;
-  return (uchar *)phys[ phys_idx ].haddr + off;          
+  if( FD_UNLIKELY( phys[ phys_idx ].gpaddr0+sz > phys[ phys_idx ].gpaddr1 ) ) {
+    return NULL;
+  }
+  return (uchar *)phys[ phys_idx ].haddr + off;
 }

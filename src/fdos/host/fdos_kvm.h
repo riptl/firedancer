@@ -4,6 +4,12 @@
 #include "fdos_env.h"
 #include <linux/kvm.h>
 
+void
+fdos_kvm_init( fdos_env_t * env,
+               int          kvm_fd,
+               int          vm_fd,
+               int          vcpu_fd );
+
 int
 fdos_kvm_run( fdos_env_t *     kern,
               struct kvm_run * kvm_run,

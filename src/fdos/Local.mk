@@ -7,6 +7,7 @@ ifneq ($(wildcard build/fdos/kern/x86_64/bin/fdos_kern.elf),)
 $(call add-objs,host/fdos_env,fdos_host)
 $(call add-objs,host/fdos_kern_img,fdos_host)
 $(call add-objs,host/fdos_kvm,fdos_host)
+$(call add-objs,host/fdos_kvm_init,fdos_host)
 $(call add-objs,host/fdos_user,fdos_host)
 ifdef FD_HAS_LIBLLVM
 $(call add-objs,x86/fd_x86_disasm,fdos_host)

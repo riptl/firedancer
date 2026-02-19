@@ -1,6 +1,12 @@
 #ifndef HEADER_fd_src_fdos_x86_fd_x86_msr_h
 #define HEADER_fd_src_fdos_x86_fd_x86_msr_h
 
+#define FD_X86_RFLAGS_IDX_PF    2
+#define FD_X86_RFLAGS_IDX_IOPL 12
+
+#define FD_X86_RFLAGS_PF    (1UL<<FD_X86_RFLAGS_IDX_PF)
+#define FD_X86_RFLAGS_IOPL3 (3UL<<FD_X86_RFLAGS_IDX_IOPL)
+
 #define FD_X86_CR0_PE (1U<<0)
 #define FD_X86_CR0_MP (1U<<1)
 #define FD_X86_CR0_EM (1U<<2)

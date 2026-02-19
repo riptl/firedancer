@@ -22,20 +22,8 @@ static void *
 gvaddr_to_haddr( fdos_env_t const * env,
                  ulong              gvaddr,
                  ulong              sz ) {
-  ulong gpaddr0 = fdos_gvaddr_to_gpaddr( gvaddr, sz, env->vmm_alloc );
-  ulong gpaddr1 = gpaddr0 + sz;
-
-  ulong phys;
-  for( phys=0UL; phys<FDOS_PIDX_MAX; phys++ ) {
-    if( !!( gpaddr0>=env->phys[ phys ].gpaddr0 ) &
-        !!( gpaddr1<=env->phys[ phys ].gpaddr1 ) ) {
-      break;
-    }
-  }
-  if( FD_UNLIKELY( phys==FDOS_PIDX_MAX ) ) return NULL;
-
-  ulong off = gpaddr0 - env->phys[ phys ].gpaddr0;
-  return (void *)( env->phys[ phys ].haddr + off );
+  ulong gpaddr = fdos_gvaddr_to_gpaddr( gvaddr, sz, env->vmm_alloc );
+  return fdos_gpaddr_to_haddr( gpaddr, sz, env->phys );
 }
 
 static void
@@ -139,7 +127,7 @@ trace_rip( fdos_env_t *     env,
 
 static void
 maybe_handle_interrupt( fdos_env_t * kern,
-                        int          vcpu_fd, 
+                        int          vcpu_fd,
                         ulong        rip ) {
   ulong hlt0 = kern->text.gvaddr;
   ulong hlt1 = hlt0 + 256;
@@ -159,6 +147,15 @@ int
 fdos_kvm_run( fdos_env_t *     kern,
               struct kvm_run * kvm_run,
               int              vcpu_fd ) {
+
+  if( kern->trace_mode==FDOS_TRACE_MODE_RIP ) {
+    struct kvm_guest_debug debug = {0};
+    debug.control = KVM_GUESTDBG_ENABLE | KVM_GUESTDBG_SINGLESTEP;
+    if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_GUEST_DEBUG, &debug )<0 ) ) {
+      FD_LOG_ERR(( "KVM_SET_GUEST_DEBUG failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+    }
+  }
+
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_RUN, 0 ) )<0 ) {
     if( errno==EINTR ) return 0;
     FD_LOG_ERR(( "KVM_RUN failed (%i-%s)", errno, fd_io_strerror( errno ) ));
