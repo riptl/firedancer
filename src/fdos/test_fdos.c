@@ -17,10 +17,11 @@ main( int     argc,
       char ** argv ) {
   fd_boot( &argc, &argv );
 
-  int flag_trace     = fd_env_strip_cmdline_contains( &argc, &argv, "--trace"           );
-  int flag_dump_phys = fd_env_strip_cmdline_contains( &argc, &argv, "--dump-phys-table" );
-  int flag_dump_pt   = fd_env_strip_cmdline_contains( &argc, &argv, "--dump-page-table" );
-  int flag_init_only = fd_env_strip_cmdline_contains( &argc, &argv, "--init-only"       );
+  int flag_trace      = fd_env_strip_cmdline_contains( &argc, &argv, "--trace"           );
+  int flag_dump_phys  = fd_env_strip_cmdline_contains( &argc, &argv, "--dump-phys-table" );
+  int flag_dump_pt    = fd_env_strip_cmdline_contains( &argc, &argv, "--dump-page-table" );
+  int flag_dump_cpuid = fd_env_strip_cmdline_contains( &argc, &argv, "--dump-cpuid"      );
+  int flag_init_only  = fd_env_strip_cmdline_contains( &argc, &argv, "--init-only"       );
 
   /* Create guest kernel data structures */
 
@@ -71,6 +72,27 @@ main( int     argc,
     fdos_vmm_printf( pml4, stderr, env->vmm_alloc );
     fputs( "\n", stderr );
     fflush( stderr );
+  }
+
+  {
+#   define CPUID_MAX 100
+    __attribute__((aligned(alignof(struct kvm_cpuid2)))) uchar cpuid_buf[ sizeof(struct kvm_cpuid2) + sizeof(struct kvm_cpuid_entry2) * CPUID_MAX ];
+    struct kvm_cpuid2 * cpuid = fd_type_pun( cpuid_buf );
+    memset( cpuid, 0, sizeof(cpuid_buf) );
+    cpuid->nent = CPUID_MAX;
+    if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_CPUID2, cpuid )<0 ) ) {
+      FD_LOG_ERR(( "KVM_GET_CPUID2 failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+    }
+    for( ulong i=0UL; i<cpuid->nent; i++ ) {
+      struct kvm_cpuid_entry2 * e = &cpuid->entries[ i ];
+      if( flag_dump_cpuid ) {
+        FD_LOG_NOTICE(( "CPUID[%08x] eax=%08x ebx=%08x ecx=%08x edx=%08x",
+                        e->function, e->eax, e->ebx, e->ecx, e->edx ));
+      } else {
+        FD_LOG_DEBUG((  "CPUID[%08x] eax=%08x ebx=%08x ecx=%08x edx=%08x",
+                        e->function, e->eax, e->ebx, e->ecx, e->edx ));
+      }
+    }
   }
 
   /* Map kvm_run struct */
