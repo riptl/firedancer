@@ -113,7 +113,7 @@ main( int     argc,
 
   sregs->idt.base  = env->idt_gvaddr;
   sregs->idt.limit = (256 * sizeof(fd_x86_idt_gate_t)) - 1UL;
-                  
+
   /* Segment descriptors */
 
   struct kvm_segment cs = {
@@ -197,6 +197,9 @@ main( int     argc,
   for( ulong i=0UL; i<xcrs.nr_xcrs; i++ ) {
     if( xcrs.xcrs[ i ].xcr==0 ) {
       xcrs.xcrs[ i ].value |= FD_X86_XCR0_X87 | FD_X86_XCR0_SSE | FD_X86_XCR0_AVX;
+#     if defined(__AVX512F__)
+      xcrs.xcrs[ i ].value |= FD_X86_XCR0_OPMASK | FD_X86_XCR0_ZMM_HI256 | FD_X86_XCR0_HI16_ZMM;
+#     endif
       break;
     }
   }

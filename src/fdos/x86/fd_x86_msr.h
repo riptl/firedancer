@@ -29,8 +29,11 @@
 #define FD_X86_MSR_PVCLOCK_EPOCH 0x4b564d00
 #define FD_X86_MSR_PVCLOCK_OFF   0x4b564d01
 
-#define FD_X86_XCR0_X87 (1U<<0)
-#define FD_X86_XCR0_SSE (1U<<1)
-#define FD_X86_XCR0_AVX (1U<<2)
+#define FD_X86_XCR0_X87       (1U<<0)
+#define FD_X86_XCR0_SSE       (1U<<1)
+#define FD_X86_XCR0_AVX       (1U<<2)
+#define FD_X86_XCR0_OPMASK    (1U<<5)
+#define FD_X86_XCR0_ZMM_HI256 (1U<<6)
+#define FD_X86_XCR0_HI16_ZMM  (1U<<7)
 
 #endif /* HEADER_fd_src_fdos_x86_fd_x86_msr_h */

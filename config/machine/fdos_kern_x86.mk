@@ -7,6 +7,10 @@ ifeq ($(wildcard opt/cross/x86/include/stdlib.h),)
 $(error Embedded libc not found. Run ./deps.sh +embedded)
 endif
 
+CFLAGS+=\
+  -mcmodel=kernel \
+  -mfsgsbase
+
 CPPFLAGS+=\
   -isystem opt/cross/x86/include \
   -isystem "$(shell $(CC) -print-resource-dir)/include" \
