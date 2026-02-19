@@ -12,6 +12,7 @@
 #include <sys/mman.h>
 #include <sys/random.h>
 #if defined(__linux__)
+#include <linux/prctl.h>
 #include <sys/prctl.h>
 #endif
 
@@ -292,7 +293,7 @@ fd_shmem_join( char const *               name,
 
 # if defined(PR_SET_VMA) && defined(PR_SET_VMA_ANON_NAME)
   if( FD_UNLIKELY( prctl( PR_SET_VMA, PR_SET_VMA_ANON_NAME, (ulong)shmem, page_sz*page_cnt, name ) ) ) {
-    if( errno!=EINVAL ) {  /* EINVAL implies that kernel is too old */
+    if( errno!=EINVAL ) {  /* EINVAL implies CONFIG_ANON_VMA_NAME missing */
       FD_LOG_WARNING(( "prctl(PR_SET_VMA,PR_SET_VMA_ANON_NAME,mem=%p,sz=%lu,name=\"%s\") failed (%i-%s)", shmem, page_sz*page_cnt, name, errno, fd_io_strerror( errno ) ));
     }
   }
@@ -535,7 +536,7 @@ fd_shmem_join_anonymous( char const * name,
 
 # if defined(PR_SET_VMA) && defined(PR_SET_VMA_ANON_NAME)
   if( FD_UNLIKELY( prctl( PR_SET_VMA, PR_SET_VMA_ANON_NAME, (ulong)mem, page_sz*page_cnt, name ) ) ) {
-    if( errno!=EINVAL ) {  /* EINVAL implies that kernel is too old */
+    if( errno!=EINVAL ) {  /* EINVAL implies CONFIG_ANON_VMA_NAME missing */
       FD_LOG_WARNING(( "prctl(PR_SET_VMA,PR_SET_VMA_ANON_NAME,mem=%p,sz=%lu,name=\"%s\") failed (%i-%s)", mem, page_sz*page_cnt, name, errno, fd_io_strerror( errno ) ));
     }
   }
@@ -582,6 +583,17 @@ fd_shmem_leave_anonymous( void *                 join,
 
   fd_shmem_private_map_remove( fd_shmem_private_map, join_info );
   fd_shmem_private_map_cnt--;
+
+  /* Remove the region in /proc/pid/maps */
+
+# if defined(PR_SET_VMA) && defined(PR_SET_VMA_ANON_NAME)
+  if( FD_UNLIKELY( prctl( PR_SET_VMA, PR_SET_VMA_ANON_NAME, (ulong)opt_info->shmem, opt_info->page_cnt*opt_info->page_sz, NULL ) ) ) {
+    if( errno!=EINVAL ) {  /* EINVAL implies CONFIG_ANON_VMA_NAME missing */
+      FD_LOG_WARNING(( "prctl(PR_SET_VMA,PR_SET_VMA_ANON_NAME,mem=%p,sz=%lu,name=NULL) failed (%i-%s)", opt_info->shmem, opt_info->page_cnt*opt_info->page_sz, errno, fd_io_strerror( errno ) ));
+    }
+  }
+# endif
+
   FD_SHMEM_UNLOCK;
   return 0;
 }
