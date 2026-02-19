@@ -5,6 +5,7 @@
 #include "../x86/fd_x86_disasm.h"
 #include "fdos_env.h"
 #include <errno.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <sys/ioctl.h> /* ioctl(2) */
 
@@ -120,11 +121,10 @@ trace_rip( fdos_env_t *     env,
   fd_cstr_fini( p );
   ulong hex_len = (ulong)( p - hex );
 
-  FD_LOG_INFO(( "\033[2mrip=%016lx\033[0m %s \033[2mrsp=%16llx rax=%16llx  %.*s\033[0m",
-                rip, dis,
-                regs.rsp,
-                regs.rax,
-                (int)hex_len, hex ));
+  fprintf( stderr, "\033[2mrip=%016lx\033[0m %s \033[2mrsp=%16llx  %.*s\033[0m\n",
+           rip, dis,
+           regs.rsp,
+           (int)hex_len, hex );
 }
 
 static void
@@ -142,6 +142,20 @@ maybe_handle_interrupt( fdos_env_t * kern,
     }
     FD_LOG_NOTICE(( "Page fault address: %#llx", sregs.cr2 ));
   }
+
+  struct kvm_regs regs;
+  if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_REGS, &regs )<0 ) ) {
+    FD_LOG_ERR(( "KVM_GET_REGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+  FD_LOG_NOTICE(( "Registers:\n"
+                  "  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n"
+                  "  rsi=%016llx rdi=%016llx rsp=%016llx rbp=%016llx\n"
+                  "  r8 =%016llx r9 =%016llx r10=%016llx r11=%016llx\n"
+                  "  r12=%016llx r13=%016llx r14=%016llx r15=%016llx\n",
+                  regs.rax, regs.rbx, regs.rcx, regs.rdx,
+                  regs.rsi, regs.rdi, regs.rsp, regs.rbp,
+                  regs.r8,  regs.r9,  regs.r10, regs.r11,
+                  regs.r12, regs.r13, regs.r14, regs.r15 ));
   FD_LOG_ERR(( "Caught interrupt type %02x-%s", idx, fd_x86_interrupt_cstr( idx ) ));
 }
 

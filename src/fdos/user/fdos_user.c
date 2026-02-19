@@ -39,7 +39,7 @@ fdos_user_clock_gettime( clockid_t         clock_id,
 void
 fdos_user_entrypoint( void ) {
   FD_ONCE_BEGIN {
-    fd_log_private_logfile_fd_set( 3 );
+    if( fd_log_private_logfile_fd()>=0 ) fd_log_private_logfile_fd_set( 3 );
     fd_log_thread_set( "kvm3" );
     FD_LOG_NOTICE(( "HELLO" ));
   }

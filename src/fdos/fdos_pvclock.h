@@ -23,8 +23,8 @@ struct __attribute__((packed)) fd_pvclock {
 
 typedef struct fd_pvclock fd_pvclock_t;
 
-static inline ulong 
-pvclock_scale_delta( ulong delta, 
+static inline ulong
+pvclock_scale_delta( ulong delta,
                      uint  mul_frac,
                      int   shift) {
 	if( shift < 0 ) delta >>= -shift;
@@ -44,7 +44,7 @@ pvclock_scale_delta( ulong delta,
 	return product;
 }
 
-FD_FN_UNUSED __attribute__((noinline)) static long
+static inline long
 fd_pvclock_now( void const * c ) {
   /* FIXME version checking */
   fd_pvclock_t const * pvclock = (fd_pvclock_t const *)c;

@@ -18,6 +18,8 @@ __attribute__((section(".text.syscall")))
 __attribute__((naked)) void
 syscall_handler( void ) {
   __asm__ volatile (
+      "cmp $231, %eax;\n"
+      "je longjmp;\n"
       "sub $128, %rsp;\n"
       /* This is probably a bit overkill */
       "pushq %rbp;\n"
@@ -77,10 +79,56 @@ fd_io_write( int          fd,
 
 /* Context switching **************************************************/
 
+__attribute__((aligned(64))) ulong g_save[ 4096 ];
+
+// __attribute__((naked)) uint
+// setjmp_xsave( void ) {
+//   __asm__ volatile (
+//       "movabsq $g_save, %rdi;\n"
+//       "leaq 8(%rsp), %rdx;\n"
+//       "movq %rdx, 0(%rdi);\n"   /* g_save[0] -> stack pointer after return */
+//       "movq (%rsp), %rdx;\n"
+//       "movq %rdx, 8(%rdi);\n"   /* g_save[1] -> return address */
+//       "xor %eax, %eax;\n"
+//       "xor %edx, %edx;\n"
+//       "xsaveoptq 64(%rdi);\n"
+//       "retq;\n"
+//   );
+// }
+
+// __attribute__((naked,noreturn)) void
+// longjmp_xsave( void ) {
+//   __asm__ volatile (
+//       "movabsq $g_save, %rdi;\n"
+//       "xrstorq 64(%rdi);\n"
+//       "movq 0(%rdi), %rsp;\n"  /* restore stack pointer  */
+//       "jmp *8(%rdi);\n"        /* jump to return address */
+//   );
+// }
+
+__attribute__((naked)) uint
+setjmp( void ) {
+  __asm__ volatile (
+      "movabsq $g_save, %rsi;\n"
+      "movq %rbx, (%rsi);\n"
+      "movq %rbp, 8(%rsi);\n"
+      "movq %r12, 16(%rsi);\n"
+      "movq %r13, 24(%rsi);\n"
+      "movq %r14, 32(%rsi);\n"
+      "movq %r15, 40(%rsi);\n"
+      "leaq 8(%rsp), %rdx;\n"
+      "movq %rdx, 48(%rsi);\n"
+      "movq (%rsp), %rdx;\n"
+      "movq %rdx, 56(%rsi);\n"
+      "xorl %eax, %eax;\n"
+      "retq;\n"
+  );
+}
+
 __attribute__((naked,noreturn)) void
 longjmp( void ) {
   __asm__ volatile (
-      "movabsq $g_sysret, %rdi;\n"
+      "movabsq $g_save, %rdi;\n"
       "movq (%rdi), %rbx;\n"
       "movq 8(%rdi), %rbp;\n"
       "movq 16(%rdi), %r12;\n"
@@ -97,32 +145,22 @@ syscall_handler1( ulong arg0,
                   ulong arg1,
                   ulong arg2,
                   uint  num ) {
-  (void)arg0; (void)arg1; (void)arg2;
+  (void)arg2;
   switch( num ) {
   case 231: /* exit_group */
     longjmp();
+  case 257: /* openat */
+    /* FIXME validate arg1 pointer */
+    FD_LOG_CRIT(( "rejected userland syscall 'openat(%d,%s)', aborting", (int)arg0, (char const *)arg1 ));
   default:
     FD_LOG_CRIT(( "unsupported syscall %u", num ));
   }
 }
 
-struct fd_jmp_buf {
-  ulong rbx;
-  ulong rbp;
-  ulong r12;
-  ulong r13;
-  ulong r14;
-  ulong r15;
-  ulong rsp;
-  ulong ret;
-};
-
-typedef struct fd_jmp_buf fd_jmp_buf_t;
-
-fd_jmp_buf_t g_sysret;
+/* ring3 API */
 
 __attribute__((naked)) void
-enter_ring3( ulong user_stack_top_gpaddr, /* rdi */
+ring3_enter( ulong user_stack_top_gpaddr, /* rdi */
              ulong function ) {           /* rsi */
   __asm__ volatile (
       "pushq $0x23;\n" /* segment 4 */
@@ -136,25 +174,6 @@ enter_ring3( ulong user_stack_top_gpaddr, /* rdi */
   );
 }
 
-__attribute__((naked)) uint
-setjmp( void ) {
-  __asm__ volatile (
-      "movabsq $g_sysret, %rsi;\n"
-      "movq %rbx, (%rsi);\n"
-      "movq %rbp, 8(%rsi);\n"
-      "movq %r12, 16(%rsi);\n"
-      "movq %r13, 24(%rsi);\n"
-      "movq %r14, 32(%rsi);\n"
-      "movq %r15, 40(%rsi);\n"
-      "leaq 8(%rsp), %rdx;\n"
-      "movq %rdx, 48(%rsi);\n"
-      "movq (%rsp), %rdx;\n"
-      "movq %rdx, 56(%rsi);\n"
-      "xorl %eax, %eax;\n"
-      "retq;\n"
-  );
-}
-
 __attribute__((naked)) static void
 ring3_end( void ) {
   __asm__ volatile (
@@ -162,6 +181,15 @@ ring3_end( void ) {
       "syscall;\n"
       "ud2;\n"
   );
+}
+
+static void
+ring3_run( ulong stack_top_gvaddr,
+           ulong func ) {
+  if( setjmp()==0 ) {
+    ring3_enter( stack_top_gvaddr, func );
+    __builtin_unreachable();
+  }
 }
 
 __attribute__((noreturn)) void
@@ -173,23 +201,20 @@ fdos_kern_main( fdos_kern_args_t * args ) {
   fd_log_colorize_set( 1 );
 
   FD_LOG_NOTICE(( "Hello world!" ));
-  ulong const user_stack_top_gpaddr = args->stack_user_top_gvaddr-8UL;
-  FD_STORE( ulong, (void *)user_stack_top_gpaddr, (ulong)ring3_end );
-  if( setjmp()==0 ) {
-    enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr );
-  } else {
-    FD_LOG_NOTICE(( "Returned from ring 3" ));
-  }
+  ulong const ustack = args->stack_user_top_gvaddr-8UL;
+  ulong const uentry = args->ring3_entry_gvaddr;
+  FD_STORE( ulong, (void *)ustack, (ulong)ring3_end );
+
+  ring3_run( ustack, uentry );
+  FD_LOG_NOTICE(( "Returned from ring 3" ));
 
   FD_LOG_NOTICE(( "Benchmarking" ));
   long dt = -fd_log_wallclock();
   ulong iter = (ulong)1e7;
   for( ulong i=0UL; i<iter; i++ ) {
-    if( setjmp()==0 ) {
-      enter_ring3( user_stack_top_gpaddr, (ulong)args->ring3_entry_gvaddr );
-    }
+    ring3_run( ustack, uentry );
   }
-  dt += fd_log_wallclock();
+  dt += fd_log_wallclock(); (void)dt;
   FD_LOG_NOTICE(( "Context switching: %lu ns/iter", (ulong)( (double)dt/(double)iter ) ));
 
   FD_LOG_ERR(( "Goodbye" ));

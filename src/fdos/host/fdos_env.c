@@ -242,10 +242,10 @@ fdos_env_create( fdos_env_t *  env,
   ulong part_max  = 61UL; /* 4096 headroom */
 
   /* Allocate guest physical memory regions */
-  fd_wksp_t * wksp_kern_heap  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ,  1024UL, guest_cpu, "kern_heap",  part_max ); FD_TEST( wksp_kern_heap  );
-  fd_wksp_t * wksp_kern_data  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ,  1024UL, guest_cpu, "kern_data",  part_max ); FD_TEST( wksp_kern_data  );
-  fd_wksp_t * wksp_kern_stack = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ,  1024UL, guest_cpu, "kern_stack", part_max ); FD_TEST( wksp_kern_stack );
-  fd_wksp_t * wksp_user_mem   = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 65536UL, guest_cpu, "user_mem",   part_max ); FD_TEST( wksp_user_mem   );
+  fd_wksp_t * wksp_kern_heap  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 1024UL, guest_cpu, "fdos_kern_heap",  part_max ); FD_TEST( wksp_kern_heap  );
+  fd_wksp_t * wksp_kern_data  = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 1024UL, guest_cpu, "fdos_kern_data",  part_max ); FD_TEST( wksp_kern_data  );
+  fd_wksp_t * wksp_kern_stack = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 1024UL, guest_cpu, "fdos_kern_stack", part_max ); FD_TEST( wksp_kern_stack );
+  fd_wksp_t * wksp_user_mem   = fd_wksp_new_anonymous( FD_SHMEM_NORMAL_PAGE_SZ, 4096UL, guest_cpu, "fdos_user_mem",   part_max ); FD_TEST( wksp_user_mem   );
 
   /* Guest kernel stack */
   ulong stack_kern_gaddr  = fd_wksp_alloc( wksp_kern_stack, 16UL, 2*FD_SHMEM_HUGE_PAGE_SZ-FD_SHMEM_NORMAL_PAGE_SZ, 1UL );
@@ -296,6 +296,11 @@ fdos_env_create( fdos_env_t *  env,
   phys_map_range( env, FDOS_PIDX_KERN_RODATA, env->rodata.gpaddr,     env->rodata.haddr, env->rodata.sz );
   phys_map_range( env, FDOS_PIDX_KERN_DATA,   env->data.gpaddr,       env->data.haddr,   env->data.sz   );
   phys_map_wksp ( env, FDOS_PIDX_USER_MEM,    FDOS_GPADDR_USER_MEM,   env->wksp_user_mem   );
+
+  /* Exercise glibc code paths that open files, to prevent attempts to
+     open those files while in KVM. */
+  char wallclock[ FD_LOG_WALLCLOCK_CSTR_BUF_SZ ];
+  fd_log_wallclock_cstr( 0L, wallclock );
 
   fdos_migrate_self( env );
 

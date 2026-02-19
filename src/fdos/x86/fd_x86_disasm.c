@@ -19,9 +19,13 @@ fd_x86_disasm( uchar const * code,
     disasm_ctx = LLVMCreateDisasm( "x86_64-unknown-linux-gnu", NULL, 0, NULL, NULL );
     FD_TEST( disasm_ctx );
 
-    FD_TEST( 1==LLVMSetDisasmOptions( disasm_ctx,
+    ulong options =
         LLVMDisassembler_Option_PrintImmHex|
-        LLVMDisassembler_Option_AsmPrinterVariant ) );
+        LLVMDisassembler_Option_AsmPrinterVariant;
+#   ifdef LLVMDisassembler_Option_Color
+    options |= LLVMDisassembler_Option_Color;
+#   endif
+    FD_TEST( 1==LLVMSetDisasmOptions( disasm_ctx, options ) );
   }
   FD_THREAD_ONCE_END;
 

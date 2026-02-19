@@ -71,12 +71,24 @@ copy_vmm( fdos_phys_t *      phys,
     if( strstr( p, "[vvar"      ) ) continue;
     if( strstr( p, "[vdso]"     ) ) continue;
     if( strstr( p, "[vsyscall]" ) ) continue;
-
+    if( strstr( p, ".so" ) ) {
+      /* permitted libraries */
+      if( strstr( p, "libc.so"   ) ) goto permit;
+      if( strstr( p, "libm.so"   ) ) goto permit;
+      if( strstr( p, "libgcc.so" ) ) goto permit;
+      continue;
+    permit:;
+    }
     ulong m0;
     ulong m1;
     char perms[5];
     int r = sscanf( p, "%lx-%lx %4s", &m0, &m1, perms );
     if( FD_UNLIKELY( r!=3 ) ) continue;
+
+    /* Don't copy Firedancer workspaces */
+    fd_shmem_join_info_t info[1];
+    if( 0==fd_shmem_join_query_by_addr( (void const *)m0, m1-m0, info ) ) continue;
+    FD_LOG_NOTICE(( "line=%s %lu bytes", line, m1-m0 ));
 
     int is_read  = perms[ 0 ]=='r';
     int is_write = perms[ 1 ]=='w';
