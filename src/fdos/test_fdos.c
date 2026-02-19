@@ -86,11 +86,11 @@ main( int     argc,
     for( ulong i=0UL; i<cpuid->nent; i++ ) {
       struct kvm_cpuid_entry2 * e = &cpuid->entries[ i ];
       if( flag_dump_cpuid ) {
-        FD_LOG_NOTICE(( "CPUID[%08x] eax=%08x ebx=%08x ecx=%08x edx=%08x",
-                        e->function, e->eax, e->ebx, e->ecx, e->edx ));
+        FD_LOG_NOTICE(( "CPUID[%08x,%x] eax=%08x ebx=%08x ecx=%08x edx=%08x",
+                        e->function, e->index, e->eax, e->ebx, e->ecx, e->edx ));
       } else {
-        FD_LOG_DEBUG((  "CPUID[%08x] eax=%08x ebx=%08x ecx=%08x edx=%08x",
-                        e->function, e->eax, e->ebx, e->ecx, e->edx ));
+        FD_LOG_DEBUG((  "CPUID[%08x,%x] eax=%08x ebx=%08x ecx=%08x edx=%08x",
+                        e->function, e->index, e->eax, e->ebx, e->ecx, e->edx ));
       }
     }
   }

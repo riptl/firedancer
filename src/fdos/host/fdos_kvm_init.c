@@ -1,4 +1,5 @@
 #include "fdos_kvm.h"
+#include "fdos_cpuid.h"
 #include "../kern/fdos_kern_def.h"
 #include "../x86/fd_x86_msr.h"
 #include <stddef.h>
@@ -15,7 +16,7 @@ vm_caps_set( int vm_fd ) {
   }
 }
 
-static void
+static ulong
 vcpu_cpuid_set( int kvm_fd,
                 int vcpu_fd ) {
 # define CPUID_MAX 100
@@ -26,9 +27,19 @@ vcpu_cpuid_set( int kvm_fd,
   if( FD_UNLIKELY( ioctl( kvm_fd, KVM_GET_SUPPORTED_CPUID, cpuid )<0 ) ) {
     FD_LOG_ERR(( "KVM_GET_SUPPORTED_CPUID failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
+
+  fdos_cpuid_check_t check[1];
+  fdos_cpuid_check_init( check );
+  for( ulong i=0UL; i<cpuid->nent; i++ ) {
+    struct kvm_cpuid_entry2 * e = &cpuid->entries[ i ];
+    fdos_cpuid_check_push( check, e->function, e->index, e->eax, e->ebx, e->ecx, e->edx );
+  }
+  fdos_cpuid_validate( check );
+
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_CPUID2, cpuid )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_CPUID2 failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
+  return check->cpu_feat;
 }
 
 static void
@@ -126,17 +137,24 @@ vcpu_sregs_set( fdos_env_t * env,
 }
 
 static void
-vcpu_xcrs_set( int vcpu_fd ) {
+vcpu_xcrs_set( int   vcpu_fd,
+               ulong cpu_features ) {
   struct kvm_xcrs xcrs;
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_XCRS, &xcrs )<0 ) ) {
     FD_LOG_ERR(( "KVM_GET_XCRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
   for( ulong i=0UL; i<xcrs.nr_xcrs; i++ ) {
     if( xcrs.xcrs[ i ].xcr==0 ) {
-      xcrs.xcrs[ i ].value |= FD_X86_XCR0_X87 | FD_X86_XCR0_SSE | FD_X86_XCR0_AVX;
-#     if defined(__AVX512F__)
-      xcrs.xcrs[ i ].value |= FD_X86_XCR0_OPMASK | FD_X86_XCR0_ZMM_HI256 | FD_X86_XCR0_HI16_ZMM;
-#     endif
+      xcrs.xcrs[ i ].value |= FD_X86_XCR0_X87;
+      if( cpu_features & FDOS_CPU_FEAT_REG_XMM ) {
+        xcrs.xcrs[ i ].value |= FD_X86_XCR0_SSE;
+      }
+      if( cpu_features & FDOS_CPU_FEAT_REG_YMM ) {
+        xcrs.xcrs[ i ].value |= FD_X86_XCR0_AVX;
+      }
+      if( cpu_features & FDOS_CPU_FEAT_REG_ZMM ) {
+        xcrs.xcrs[ i ].value |= FD_X86_XCR0_OPMASK | FD_X86_XCR0_ZMM_HI256 | FD_X86_XCR0_HI16_ZMM;
+      }
       break;
     }
   }
@@ -227,9 +245,9 @@ fdos_kvm_init( fdos_env_t * env,
                int          vcpu_fd ) {
   vm_map_phys   ( env, vm_fd );
   vm_caps_set   ( vm_fd );
-  vcpu_cpuid_set( kvm_fd, vcpu_fd );
+  ulong cpu_features = vcpu_cpuid_set( kvm_fd, vcpu_fd );
   vcpu_sregs_set( env, vcpu_fd );
-  vcpu_xcrs_set ( vcpu_fd );
+  vcpu_xcrs_set ( vcpu_fd, cpu_features );
   vcpu_msrs_set ( env, vcpu_fd );
   vcpu_entry_set( env, vcpu_fd );
 }
