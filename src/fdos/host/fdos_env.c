@@ -299,6 +299,8 @@ fdos_env_create( fdos_env_t *  env,
   phys_map_range( env, FDOS_PIDX_KERN_RODATA, env->rodata.gpaddr,     env->rodata.haddr, env->rodata.sz, 0 );
   phys_map_range( env, FDOS_PIDX_KERN_DATA,   env->data.gpaddr,       env->data.haddr,   env->data.sz,   1 );
   phys_map_wksp ( env, FDOS_PIDX_USER_MEM,    FDOS_GPADDR_USER_MEM,   env->wksp_user_mem,                1 );
+  static uchar dummy[ 4096 ] __attribute__((aligned(4096)));
+  phys_map_range( env, FDOS_PIDX_SHMEM,       FDOS_GPADDR_SHMEM,      (ulong)dummy, sizeof(dummy),       1 );
 
   /* Exercise glibc code paths that open files, to prevent attempts to
      open those files while in KVM. */

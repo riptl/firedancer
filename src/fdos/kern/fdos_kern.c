@@ -4,6 +4,7 @@
 #include "../fdos_pvclock.h"
 #include "../fdos_vmm.h"
 #include "../x86/fd_x86_mmu.h"
+#include "../kern/fdos_kern_def.h"
 #include "../../util/log/fd_log.h"
 #include <stdarg.h>
 #include <immintrin.h>
@@ -112,7 +113,7 @@ ring3_run( ulong stack_top_gvaddr,
   fdos_vmm_alloc_t * alloc = &g_vmm_alloc;
   ulong * pml4 = (ulong *)alloc->haddr;
   ulong   next = alloc->next;
-  fdos_vmm_map_range( pml4, 0x1000UL, 0x4000000UL, 4096UL, FD_X86_PT_US, alloc );
+  fdos_vmm_map_range( pml4, 0x1000UL, FDOS_GPADDR_SHMEM, 4096UL, FD_X86_PT_US|FD_X86_PT_RW, alloc );
 
   if( setjmp()==0 ) {
     ring3_enter( stack_top_gvaddr, func );

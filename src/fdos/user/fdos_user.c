@@ -44,4 +44,8 @@ fdos_user_entrypoint( void ) {
     FD_LOG_NOTICE(( "HELLO" ));
   }
   FD_ONCE_END;
+
+  /* Access ephemeral pages */
+  uchar * ptr = (uchar *)0x1000UL;
+  FD_STORE( ulong, ptr, 1234UL );
 }

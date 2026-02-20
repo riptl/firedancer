@@ -7,6 +7,7 @@
 #define FDOS_GPADDR_KERN_HEAP  0x2000000UL /* page table, GDT, TSS, etc */
 #define FDOS_GPADDR_KERN_STACK 0x3000000UL /* guest stack */
 #define FDOS_GPADDR_USER_MEM   0x4000000UL /* user memory */
+#define FDOS_GPADDR_SHMEM      0x5000000UL /* external shared memory */
 
 /* Virtual memory layout */
 

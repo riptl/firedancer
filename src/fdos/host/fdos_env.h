@@ -24,7 +24,8 @@ typedef struct fdos_vmo fdos_vmo_t;
 #define FDOS_PIDX_KERN_RODATA 3
 #define FDOS_PIDX_KERN_DATA   4
 #define FDOS_PIDX_USER_MEM    5
-#define FDOS_PIDX_MAX         6
+#define FDOS_PIDX_SHMEM       6
+#define FDOS_PIDX_MAX         7
 
 struct fdos_phys {
   uint  gpaddr0 : 31;
