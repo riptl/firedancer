@@ -101,6 +101,7 @@ fdos_env_img_load( fdos_env_t *  env,
   };
   FD_TEST( fd_ulong_is_aligned( env->text.gpaddr, FD_SHMEM_NORMAL_PAGE_SZ ) );
   env->entry_gvaddr = img_off->ehdr.e_entry;
+  FD_TEST( env->entry_gvaddr>=env->text.gvaddr && env->text.sz>=64UL );
 
   ulong data_gaddr = fd_wksp_alloc( env->wksp_kern_data, FD_SHMEM_NORMAL_PAGE_SZ, img_off->phdr_ram.p_memsz, 1UL );
   FD_TEST( data_gaddr );

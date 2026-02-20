@@ -74,7 +74,7 @@ fdos_env_gdt( fdos_env_t * env ) {
     .g      = 1,
     .base2  = 0
   };
-  gdt[ FDOS_GDT_IDX_USER_DATA ] = (fd_x86_gdt_t) {
+  gdt[ FDOS_GDT_IDX_USER_CODE ] = (fd_x86_gdt_t) {
     .limit0 = 0xffff,
     .base0  = 0,
     .base1  = 0,
@@ -89,7 +89,7 @@ fdos_env_gdt( fdos_env_t * env ) {
     .g      = 1,
     .base2  = 0
   };
-  gdt[ FDOS_GDT_IDX_USER_CODE ] = (fd_x86_gdt_t) {
+  gdt[ FDOS_GDT_IDX_USER_DATA ] = (fd_x86_gdt_t) {
     .limit0 = 0xffff,
     .base0  = 0,
     .base1  = 0,
@@ -106,7 +106,7 @@ fdos_env_gdt( fdos_env_t * env ) {
   };
   /* TSS */
   ulong tss_base  = env->tss_kern_gvaddr;
-  uint  tss_limit = sizeof(fd_x86_tss64_t)-1UL;
+  uint  tss_limit = sizeof(fd_x86_tss64_t)-1U;
   gdt[ FDOS_GDT_IDX_TSS ] = (fd_x86_gdt_t) {
     .limit0 = tss_limit & 0xffffUL,
     .base0  = (ushort)( tss_base & 0xffffUL ),
@@ -312,6 +312,7 @@ fdos_env_destroy( fdos_env_t * env ) {
   fd_wksp_delete_anonymous( env->wksp_kern_heap  );
   fd_wksp_delete_anonymous( env->wksp_kern_data  );
   fd_wksp_delete_anonymous( env->wksp_kern_stack );
+  fd_wksp_delete_anonymous( env->wksp_user_mem   );
   memset( env, 0, sizeof(fdos_env_t) );
 }
 
@@ -329,7 +330,7 @@ fdos_gpaddr_to_haddr( ulong             gpaddr,
   if( phys_idx==FDOS_PIDX_MAX ) return NULL;
 
   ulong off = gpaddr - phys[ phys_idx ].gpaddr0;
-  if( FD_UNLIKELY( phys[ phys_idx ].gpaddr0+sz > phys[ phys_idx ].gpaddr1 ) ) {
+  if( FD_UNLIKELY( gpaddr+sz > phys[ phys_idx ].gpaddr1 ) ) {
     return NULL;
   }
   return (uchar *)phys[ phys_idx ].haddr + off;

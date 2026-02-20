@@ -167,7 +167,7 @@ static void
 vcpu_msrs_set( fdos_env_t * env,
                int          vcpu_fd ) {
   __attribute__((aligned(alignof(struct kvm_msrs))))
-  uchar msrs_buf[ sizeof(struct kvm_msrs) + 2*sizeof(struct kvm_msr_entry) ];
+  uchar msrs_buf[ sizeof(struct kvm_msrs) + 5*sizeof(struct kvm_msr_entry) ];
 
   struct kvm_msrs * msr_req = fd_type_pun( msrs_buf );
   msr_req->nmsrs = 5;
@@ -180,8 +180,8 @@ vcpu_msrs_set( fdos_env_t * env,
 
   /* SYSCALL configuration */
 
-  ulong msr_star = ((ulong)0x08 << 3) | /* kernel CS */
-                   ((ulong)0x18 << 3);  /* user CS */
+  ulong msr_star = ((ulong)0x08 << 32) | /* kernel CS */
+                   ((ulong)0x10 << 48);  /* user CS */
   msr_req->entries[1].index = FD_X86_MSR_STAR;
   msr_req->entries[1].data  = msr_star;
 

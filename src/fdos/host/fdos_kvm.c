@@ -96,6 +96,7 @@ trace_rip( fdos_env_t *     env,
       ulong off = gpaddr - phys[ phys_idx ].gpaddr0;
       code = (uchar *)phys[ phys_idx ].haddr + off;
       rem  = phys[ phys_idx ].gpaddr1 - gpaddr;
+      break;
     }
   }
 

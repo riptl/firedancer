@@ -49,7 +49,7 @@ fdos_env_map_pml1( ulong * pml1,
   ulong vaddr1 = fd_ulong_min( vaddr+sz, fd_ulong_align_up( vaddr+1UL, FD_X86_PML2E_RANGE ) );
   while( vaddr<vaddr1 ) { /* each PML1E */
     ulong pml1e_idx = fd_ulong_extract( vaddr, 12, 20 );
-    pml1[ pml1e_idx ] = paddr | FD_X86_PT_P | FD_X86_PT_PS | page_flags;
+    pml1[ pml1e_idx ] = paddr | FD_X86_PT_P | page_flags;
     vaddr += FD_X86_PML1E_RANGE;
     paddr += FD_X86_PML1E_RANGE;
   }
@@ -150,17 +150,16 @@ fdos_env_map_pml4( ulong *            pml4,
 
 void
 fdos_vmm_map_range( ulong *            pml4,
-                    ulong              vaddr,
+                    ulong              vaddr, /* canonical */
                     ulong              paddr,
                     ulong              sz,
                     ulong              flags,
                     fdos_vmm_alloc_t * alloc ) {
-  vaddr &= fd_ulong_mask_lsb( 48 );
   ulong       paddr0 = paddr;
   ulong const paddr1 = paddr+sz;
-  ulong       vaddr0 = vaddr;
-  ulong const vaddr1 = vaddr+sz;
-  FD_LOG_DEBUG(( "Mapping gvaddr=[%#lx,%#lx) gpaddr=[%#lx,%#lx) sz=%5lu KiB", vaddr0, vaddr1, paddr0, paddr1, sz>>10 ));
+  ulong       vaddr0 = vaddr & fd_ulong_mask_lsb( 48 ); /* truncated */
+  ulong const vaddr1 = vaddr0+sz;
+  FD_LOG_DEBUG(( "Mapping gvaddr=[%#lx,%#lx) gpaddr=[%#lx,%#lx) sz=%5lu KiB", vaddr, vaddr+sz, paddr0, paddr1, sz>>10 ));
   FD_CRIT( fd_ulong_is_aligned( paddr0, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( paddr1, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( vaddr0, FD_X86_PML1E_RANGE ), "invalid argument" );
