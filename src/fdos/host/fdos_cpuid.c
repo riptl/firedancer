@@ -22,12 +22,6 @@ static uint const FDOS_X86_CPUID_01_0_EDX_REQUIRED =
 static uint const FDOS_X86_CPUID_07_0_EBX_REQUIRED =
     0U;
 
-static uint const FDOS_X86_CPUID_8000_01_0_EDX_REQUIRED =
-    FD_X86_CPUID_8000_01_EDX_TSC |  /* fast clock */
-    FD_X86_CPUID_8000_01_EDX_PAE |  /* paging */
-    FD_X86_CPUID_8000_01_EDX_PGE |  /* paging */
-    FD_X86_CPUID_8000_01_EDX_NX;    /* no-execute */
-
 void
 fdos_cpuid_check_init( fdos_cpuid_check_t * check ) {
   memset( check, 0, sizeof(fdos_cpuid_check_t) );
@@ -81,19 +75,14 @@ fdos_cpuid_check_push( fdos_cpuid_check_t * check,
     check->cpu_feat |=
         ( ebx & FD_X86_CPUID_07_0_EBX_AVX512F ) ? FDOS_CPU_FEAT_REG_ZMM : 0UL;
     break;
-  case CPUID_PATH( 0x80000001U, 0x00 ):
-    check->cpuid_8000_01_0 = 1;
-    check_cpuid_features( path, "edx", edx, FDOS_X86_CPUID_8000_01_0_EDX_REQUIRED );
-    break;
 # undef CPUID_PATH
   }
 }
 
 void
 fdos_cpuid_validate( fdos_cpuid_check_t const * check ) {
-  if( FD_UNLIKELY( !check->cpuid_01_0      ) ) FD_LOG_ERR(( "CPUID 00000001:00 is missing" ));
-  if( FD_UNLIKELY( !check->cpuid_07_0      ) ) FD_LOG_ERR(( "CPUID 00000007:00 is missing" ));
-  if( FD_UNLIKELY( !check->cpuid_8000_01_0 ) ) FD_LOG_ERR(( "CPUID 80000001:00 is missing" ));
+  if( FD_UNLIKELY( !check->cpuid_01_0 ) ) FD_LOG_ERR(( "CPUID 00000001:00 is missing" ));
+  if( FD_UNLIKELY( !check->cpuid_07_0 ) ) FD_LOG_ERR(( "CPUID 00000007:00 is missing" ));
 
   ulong     cpu_feat = check->cpu_feat;
   int const feat_xmm = !!( cpu_feat & FDOS_CPU_FEAT_REG_XMM );

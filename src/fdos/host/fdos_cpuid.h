@@ -14,9 +14,8 @@
 struct fdos_cpuid_check {
   ulong cpu_feat;
 
-  uint cpuid_01_0      : 1;
-  uint cpuid_07_0      : 1;
-  uint cpuid_8000_01_0 : 1;
+  uint cpuid_01_0 : 1;
+  uint cpuid_07_0 : 1;
 };
 
 typedef struct fdos_cpuid_check fdos_cpuid_check_t;
