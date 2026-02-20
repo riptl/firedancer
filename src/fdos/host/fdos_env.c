@@ -213,13 +213,15 @@ phys_map_range( fdos_env_t * env,
                 uint         slot,
                 ulong        gpaddr,
                 ulong        haddr,
-                ulong        sz ) {
+                ulong        sz,
+                _Bool        rw ) {
   FD_TEST( slot<FDOS_PIDX_MAX );
   FD_TEST( gpaddr<=UINT_MAX && sz<=UINT_MAX && gpaddr+sz<=UINT_MAX );
   env->phys[ slot ] = (fdos_phys_t) {
-    .gpaddr0 = (uint)gpaddr,
-    .gpaddr1 = (uint)gpaddr + (uint)sz,
+    .gpaddr0 = (uint)( gpaddr            )&INT_MAX,
+    .gpaddr1 = (uint)( gpaddr + (uint)sz )&INT_MAX,
     .haddr   = haddr,
+    .rw      = rw
   };
 }
 
@@ -227,11 +229,12 @@ static void
 phys_map_wksp( fdos_env_t * env,
                uint         slot,
                ulong        gpaddr,
-               fd_wksp_t *  wksp ) {
+               fd_wksp_t *  wksp,
+               _Bool        rw ) {
   FD_TEST( slot<FDOS_PIDX_MAX );
   fd_shmem_join_info_t info[1];
   FD_TEST( 0==fd_shmem_join_query_by_join( wksp, info ) );
-  phys_map_range( env, slot, gpaddr, (ulong)wksp, info->page_sz * info->page_cnt );
+  phys_map_range( env, slot, gpaddr, (ulong)wksp, info->page_sz * info->page_cnt, rw );
 }
 
 fdos_env_t *
@@ -290,12 +293,12 @@ fdos_env_create( fdos_env_t *  env,
   fdos_env_clock_setup( env );
 
   /* Set up physical memory mappings */
-  phys_map_wksp ( env, FDOS_PIDX_KERN_HEAP,   FDOS_GPADDR_KERN_HEAP,  env->wksp_kern_heap  );
-  phys_map_wksp ( env, FDOS_PIDX_KERN_STACK,  FDOS_GPADDR_KERN_STACK, env->wksp_kern_stack );
-  phys_map_range( env, FDOS_PIDX_KERN_TEXT,   env->text.gpaddr,       env->text.haddr,   env->text.sz   );
-  phys_map_range( env, FDOS_PIDX_KERN_RODATA, env->rodata.gpaddr,     env->rodata.haddr, env->rodata.sz );
-  phys_map_range( env, FDOS_PIDX_KERN_DATA,   env->data.gpaddr,       env->data.haddr,   env->data.sz   );
-  phys_map_wksp ( env, FDOS_PIDX_USER_MEM,    FDOS_GPADDR_USER_MEM,   env->wksp_user_mem   );
+  phys_map_wksp ( env, FDOS_PIDX_KERN_HEAP,   FDOS_GPADDR_KERN_HEAP,  env->wksp_kern_heap,               1 );
+  phys_map_wksp ( env, FDOS_PIDX_KERN_STACK,  FDOS_GPADDR_KERN_STACK, env->wksp_kern_stack,              1 );
+  phys_map_range( env, FDOS_PIDX_KERN_TEXT,   env->text.gpaddr,       env->text.haddr,   env->text.sz,   0 );
+  phys_map_range( env, FDOS_PIDX_KERN_RODATA, env->rodata.gpaddr,     env->rodata.haddr, env->rodata.sz, 0 );
+  phys_map_range( env, FDOS_PIDX_KERN_DATA,   env->data.gpaddr,       env->data.haddr,   env->data.sz,   1 );
+  phys_map_wksp ( env, FDOS_PIDX_USER_MEM,    FDOS_GPADDR_USER_MEM,   env->wksp_user_mem,                1 );
 
   /* Exercise glibc code paths that open files, to prevent attempts to
      open those files while in KVM. */

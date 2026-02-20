@@ -27,8 +27,9 @@ typedef struct fdos_vmo fdos_vmo_t;
 #define FDOS_PIDX_MAX         6
 
 struct fdos_phys {
-  uint  gpaddr0;
-  uint  gpaddr1;
+  uint  gpaddr0 : 31;
+  uint  rw      :  1;
+  uint  gpaddr1 : 31;
   ulong haddr;
 };
 

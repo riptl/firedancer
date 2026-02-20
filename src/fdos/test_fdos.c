@@ -59,8 +59,8 @@ main( int     argc,
     FD_LOG_NOTICE(( "Guest physical memory map:\n" ));
     for( ulong i=0UL; i<FDOS_PIDX_MAX; i++ ) {
       if( !env->phys[ i ].haddr ) continue;
-      FD_LOG_NOTICE(( "  slot=%u gpaddr=%#010x..%#010x haddr=%p",
-                      (uint)i, env->phys[ i ].gpaddr0, env->phys[ i ].gpaddr1, (void *)env->phys[ i ].haddr ));
+      FD_LOG_NOTICE(( "  slot=%u gpaddr=%#010x..%#010x haddr=%p r%c",
+                      (uint)i, env->phys[ i ].gpaddr0, env->phys[ i ].gpaddr1, (void *)env->phys[ i ].haddr, env->phys[ i ].rw ? 'w' : 'r' ));
     }
     fputs( "\n", stderr );
     fflush( stderr );

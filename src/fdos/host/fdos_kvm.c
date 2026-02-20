@@ -206,6 +206,9 @@ fdos_kvm_run( fdos_env_t *     kern,
     trace_rip( kern, kvm_run, vcpu_fd, 0UL );
     FD_LOG_WARNING(( "KVM guest shut down (hardware_exit_reason=%#llx)", kvm_run->hw.hardware_exit_reason ));
     return 1;
+  case KVM_EXIT_MMIO:
+    trace_rip( kern, kvm_run, vcpu_fd, 0UL );
+    FD_LOG_CRIT(( "Invalid physical memory access by KVM guest (phys_addr=%#llx, len=%u, r%c)", kvm_run->mmio.phys_addr, kvm_run->mmio.len, kvm_run->mmio.is_write?'w':'r' ));
   case KVM_EXIT_INTERNAL_ERROR:
     FD_LOG_ERR(( "KVM_EXIT_INTERNAL_ERROR (suberror %u)", kvm_run->internal.suberror ));
   default:

@@ -228,7 +228,8 @@ vm_map_phys( fdos_env_t * env,
       .slot            = (uint)i,
       .guest_phys_addr = phys[ i ].gpaddr0,
       .memory_size     = phys[ i ].gpaddr1 - phys[ i ].gpaddr0,
-      .userspace_addr  = phys[ i ].haddr
+      .userspace_addr  = phys[ i ].haddr,
+      .flags           = phys[ i ].rw ? 0 : KVM_MEM_READONLY
     };
 
     if( FD_UNLIKELY( ioctl( vm_fd, KVM_SET_USER_MEMORY_REGION, &region )<0 ) ) {
