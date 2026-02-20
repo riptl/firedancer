@@ -87,9 +87,9 @@ __attribute__((naked)) void
 ring3_enter( ulong user_stack_top_gpaddr, /* rdi */
              ulong function ) {           /* rsi */
   __asm__ volatile (
-      "pushq $0x23;\n" /* segment 4 */
-      "pushq %rdi;\n"  /* user stack */
       "pushq $0x1b;\n" /* segment 3 */
+      "pushq %rdi;\n"  /* user stack */
+      "pushq $0x23;\n" /* segment 4 */
       "pushq %rsi;\n"
       "lretq;\n"
   );
