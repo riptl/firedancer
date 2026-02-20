@@ -304,6 +304,10 @@ fdos_env_create( fdos_env_t *  env,
 
   fdos_migrate_self( env );
 
+  env->entry_args->vmm_alloc       = *env->vmm_alloc;
+  /* Translate vmm_alloc to kernel heap address */
+  env->entry_args->vmm_alloc.haddr = FDOS_GVADDR_KERN_HEAP + fd_wksp_gaddr_fast( env->wksp_kern_heap, (void *)env->entry_args->vmm_alloc.haddr );
+
   return env;
 }
 

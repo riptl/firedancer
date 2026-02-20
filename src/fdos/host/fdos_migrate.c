@@ -87,15 +87,17 @@ copy_vmm( fdos_phys_t *      phys,
     int r = sscanf( p, "%lx-%lx %4s %*s %*s %*lu%n", &m0, &m1, perms, &len );
     if( FD_UNLIKELY( r!=3 || len==0 ) ) continue;
 
-    // char * path = p + len;
-    // while( *path && *path==' ' ) path++;
-    // char * path_end = path;
-    // while( *path_end && *path_end!=' ' && *path_end!='\n' ) path_end++;
-    // *path_end = '\0';
+    char * path = p + len;
+    while( *path && *path==' ' ) path++;
+    char * path_end = path;
+    while( *path_end && *path_end!=' ' && *path_end!='\n' ) path_end++;
+    *path_end = '\0';
 
     /* Don't copy Firedancer workspaces */
     fd_shmem_join_info_t info[1];
     if( 0==fd_shmem_join_query_by_addr( (void const *)m0, m1-m0, info ) ) continue;
+    (void)path;
+    //FD_LOG_NOTICE(( "%#lx %s", m0, path ));
 
     int is_read  = perms[ 0 ]=='r';
     int is_write = perms[ 1 ]=='w';

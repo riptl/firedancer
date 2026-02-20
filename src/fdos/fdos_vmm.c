@@ -2,6 +2,7 @@
 #include "x86/fd_x86_mmu.h"
 #include "../util/bits/fd_bits.h"
 #include "../util/log/fd_log.h"
+#include <immintrin.h>
 
 fdos_vmm_alloc_t *
 fdos_vmm_alloc_init( fdos_vmm_alloc_t * alloc,
@@ -22,7 +23,20 @@ fdos_vmm_alloc( fdos_vmm_alloc_t * a ) {
   }
   ulong p = a->next;
   a->next += FD_X86_PM_SZ;
-  memset( (void *)( a->haddr+p ), 0, FD_X86_PM_SZ );
+  
+  uchar * dst_haddr = (uchar *)( a->haddr+p );
+# if defined(__AVX512F__)
+  for( ulong i=0UL; i<64UL; i++ ) {
+    _mm512_store_si512( (void *)( dst_haddr + i*64 ), _mm512_setzero_si512() );
+  }
+# elif defined(__AVX__)
+  for( ulong i=0UL; i<128UL; i++ ) {
+    _mm256_store_si256( (void *)( dst_haddr + i*32 ), _mm256_setzero_si256() );
+  }
+# else
+  ulong sz = FD_X86_PM_SZ;
+  __asm__ __volatile__( "rep stosb" : "+D" (dst_haddr), "+c" (sz) : "a" (0) : "memory" );
+# endif
   return p;
 }
 
@@ -159,7 +173,7 @@ fdos_vmm_map_range( ulong *            pml4,
   ulong const paddr1 = paddr+sz;
   ulong       vaddr0 = vaddr & fd_ulong_mask_lsb( 48 ); /* truncated */
   ulong const vaddr1 = vaddr0+sz;
-  FD_LOG_DEBUG(( "Mapping gvaddr=[%#lx,%#lx) gpaddr=[%#lx,%#lx) sz=%5lu KiB", vaddr, vaddr+sz, paddr0, paddr1, sz>>10 ));
+  //FD_LOG_DEBUG(( "Mapping gvaddr=[%#lx,%#lx) gpaddr=[%#lx,%#lx) sz=%5lu KiB", vaddr, vaddr+sz, paddr0, paddr1, sz>>10 ));
   FD_CRIT( fd_ulong_is_aligned( paddr0, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( paddr1, FD_X86_PML1E_RANGE ), "invalid argument" );
   FD_CRIT( fd_ulong_is_aligned( vaddr0, FD_X86_PML1E_RANGE ), "invalid argument" );

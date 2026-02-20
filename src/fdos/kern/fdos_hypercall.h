@@ -6,6 +6,7 @@
    messages to the KVM host (e.g. logging). */
 
 #include "../../util/fd_util_base.h"
+#include "../fdos_vmm.h"
 
 /* kernel boot parameters */
 
@@ -13,6 +14,8 @@ struct fdos_kern_args {
   ulong stack_user_top_gvaddr;
   ulong ring3_entry_gvaddr;
   ulong pvclock_gvaddr;
+
+  fdos_vmm_alloc_t vmm_alloc;
 };
 
 typedef struct fdos_kern_args fdos_kern_args_t;

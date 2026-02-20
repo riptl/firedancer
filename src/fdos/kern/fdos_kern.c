@@ -2,6 +2,8 @@
 
 #include "fdos_hypercall.h"
 #include "../fdos_pvclock.h"
+#include "../fdos_vmm.h"
+#include "../x86/fd_x86_mmu.h"
 #include "../../util/log/fd_log.h"
 #include <stdarg.h>
 #include <immintrin.h>
@@ -25,7 +27,8 @@ syscall_handler( void ) {
 
 /* fd_util system environment *****************************************/
 
-static fd_pvclock_t * g_pvclock;
+static fd_pvclock_t *   g_pvclock;
+static fdos_vmm_alloc_t g_vmm_alloc;
 
 void
 fd_log_flush( void ) {}
@@ -106,15 +109,24 @@ ring3_end( void ) {
 static void
 ring3_run( ulong stack_top_gvaddr,
            ulong func ) {
+  fdos_vmm_alloc_t * alloc = &g_vmm_alloc;
+  ulong * pml4 = (ulong *)alloc->haddr;
+  ulong   next = alloc->next;
+  fdos_vmm_map_range( pml4, 0x1000UL, 0x4000000UL, 4096UL, FD_X86_PT_US, alloc );
+
   if( setjmp()==0 ) {
     ring3_enter( stack_top_gvaddr, func );
     __builtin_unreachable();
   }
+
+  pml4[ 0 ] = 0UL;
+  alloc->next = next;
 }
 
 __attribute__((noreturn)) void
 fdos_kern_main( fdos_kern_args_t * args ) {
-  g_pvclock = (fd_pvclock_t *)args->pvclock_gvaddr;
+  g_pvclock   = (fd_pvclock_t *)args->pvclock_gvaddr;
+  g_vmm_alloc = args->vmm_alloc;
 
   fd_log_thread_set( "kvm0" );
   fd_log_wallclock_set( fd_pvclock_now, g_pvclock );

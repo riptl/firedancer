@@ -157,6 +157,7 @@ maybe_handle_interrupt( fdos_env_t * kern,
                   regs.rsi, regs.rdi, regs.rsp, regs.rbp,
                   regs.r8,  regs.r9,  regs.r10, regs.r11,
                   regs.r12, regs.r13, regs.r14, regs.r15 ));
+  fdos_vmm_printf( (ulong *)kern->vmm_alloc->haddr, stderr, kern->vmm_alloc );
   FD_LOG_ERR(( "Caught interrupt type %02x-%s", idx, fd_x86_interrupt_cstr( idx ) ));
 }
 
