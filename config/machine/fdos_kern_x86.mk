@@ -13,7 +13,8 @@ CFLAGS+=\
 CPPFLAGS+=\
   -isystem opt/cross/x86/include \
   -isystem "$(shell $(CC) -print-resource-dir)/include" \
-  -nostdinc
+  -nostdinc \
+  -minvpcid
 
 FD_FDOS_KERN:=1
 CPPFLAGS+=-DFD_FDOS_KERN=1
