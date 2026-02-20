@@ -113,7 +113,26 @@ ring3_run( ulong stack_top_gvaddr,
   fdos_vmm_alloc_t * alloc = &g_vmm_alloc;
   ulong * pml4 = (ulong *)alloc->haddr;
   ulong   next = alloc->next;
-  fdos_vmm_map_range( pml4, 0x1000UL, FDOS_GPADDR_SHMEM, 4096UL, FD_X86_PT_US|FD_X86_PT_RW, alloc );
+
+  /* Fast variant of vmm_map_range */
+  //fdos_vmm_map_range( pml4, 0x1000UL, FDOS_GPADDR_SHMEM, 4096UL, FD_X86_PT_US|FD_X86_PT_RW, alloc );
+  ulong   pml3_gpaddr    = alloc->gpaddr + next;
+  ulong   pml2_gpaddr    = alloc->gpaddr + next +   FD_X86_PM_SZ;
+  ulong   pml1_gpaddr    = alloc->gpaddr + next + 2*FD_X86_PM_SZ;
+  ulong * pml3 = (ulong *)( alloc->haddr + next                  );
+  ulong * pml2 = (ulong *)( alloc->haddr + next +   FD_X86_PM_SZ );
+  ulong * pml1 = (ulong *)( alloc->haddr + next + 2*FD_X86_PM_SZ );
+  FD_ONCE_BEGIN {
+    void * out = pml3;
+    ulong  sz  = 3*FD_X86_PM_SZ;
+    __asm__ __volatile__( "rep stosb" : "+D" (out), "+c" (sz) : "a" (0x00) : "memory" );
+  }
+  FD_ONCE_END;
+
+  pml4[ 0 ] = pml3_gpaddr | FD_X86_PT_P | FD_X86_PT_RW | FD_X86_PT_US;
+  pml3[ 0 ] = pml2_gpaddr | FD_X86_PT_P | FD_X86_PT_RW | FD_X86_PT_US;
+  pml2[ 0 ] = pml1_gpaddr | FD_X86_PT_P | FD_X86_PT_RW | FD_X86_PT_US;
+  pml1[ 1 ] = FDOS_GPADDR_SHMEM | FD_X86_PT_P | FD_X86_PT_RW | FD_X86_PT_US | FD_X86_PT_XD;
 
   if( setjmp()==0 ) {
     ring3_enter( stack_top_gvaddr, func );
@@ -121,7 +140,9 @@ ring3_run( ulong stack_top_gvaddr,
   }
 
   pml4[ 0 ] = 0UL;
-  alloc->next = next;
+  pml3[ 0 ] = 0UL;
+  pml2[ 0 ] = 0UL;
+  pml1[ 1 ] = 0UL;
   ulong descriptor[ 2 ] = { 0UL, 0UL };
   _invpcid( 3, descriptor ); /* invalidate TLB except global pages */
 }

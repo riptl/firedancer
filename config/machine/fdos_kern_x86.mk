@@ -14,6 +14,8 @@ CPPFLAGS+=\
   -isystem opt/cross/x86/include \
   -isystem "$(shell $(CC) -print-resource-dir)/include" \
   -nostdinc \
+  -march=native \
+  -mtune=native \
   -minvpcid
 
 FD_FDOS_KERN:=1

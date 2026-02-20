@@ -23,7 +23,7 @@ fdos_vmm_alloc( fdos_vmm_alloc_t * a ) {
   }
   ulong p = a->next;
   a->next += FD_X86_PM_SZ;
-  
+
   uchar * dst_haddr = (uchar *)( a->haddr+p );
 # if defined(__AVX512F__)
   for( ulong i=0UL; i<64UL; i++ ) {
@@ -42,7 +42,7 @@ fdos_vmm_alloc( fdos_vmm_alloc_t * a ) {
 
 static inline ulong *
 fdos_pt_gpaddr_to_haddr( fdos_vmm_alloc_t const * a,
-                         ulong                   gpaddr ) {
+                         ulong                    gpaddr ) {
   return (ulong *)( a->haddr + ( gpaddr - a->gpaddr ) );
 }
 
