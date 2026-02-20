@@ -121,6 +121,8 @@ ring3_run( ulong stack_top_gvaddr,
 
   pml4[ 0 ] = 0UL;
   alloc->next = next;
+  ulong descriptor[ 2 ] = { 0UL, 0UL };
+  _invpcid( 3, descriptor ); /* invalidate TLB except global pages */
 }
 
 __attribute__((noreturn)) void
