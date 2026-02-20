@@ -76,7 +76,7 @@ fd_tpool_private_worker( int     argc,
 
     /* We are EXEC ... do the task and then transition to IDLE */
 
-    try {
+    // try {
 
       if( _arg_cnt==UINT_MAX ) {
 
@@ -100,9 +100,9 @@ fd_tpool_private_worker( int     argc,
 
       }
 
-    } catch( ... ) {
-      FD_LOG_WARNING(( "uncaught exception; attempting to continue" ));
-    }
+    // } catch( ... ) {
+      // FD_LOG_WARNING(( "uncaught exception; attempting to continue" ));
+    // }
 
     FD_COMPILER_MFENCE();
 

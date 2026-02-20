@@ -2,7 +2,6 @@
 
 #include "fdos_hypercall.h"
 #include "../fdos_pvclock.h"
-#include "../x86/fd_x86_msr.h"
 #include "../../util/log/fd_log.h"
 #include <stdarg.h>
 #include <immintrin.h>
