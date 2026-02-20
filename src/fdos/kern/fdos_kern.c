@@ -159,9 +159,9 @@ __attribute__((noreturn)) void
 fdos_kern_entry( fdos_kern_args_t * args ) {
 
   /* On entry, our GDT, code, and data segment selectors were set up by
-     the host.  However, we will need to far return to make the content
-     of these structures take changes.  Otherwise, we would run in some
-     undocumented KVM guest default state. */
+     the host.  However, we will need to far return to update the
+     descriptor cache.  Otherwise, we would run in the KVM guest default
+     state. */
 
   __asm__ volatile (
       /* Select segment 1, privilege level 0 */

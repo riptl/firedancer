@@ -48,4 +48,6 @@ fdos_user_entrypoint( void ) {
   /* Access ephemeral pages */
   uchar * ptr = (uchar *)0x1000UL;
   FD_STORE( ulong, ptr, 1234UL );
+
+  __asm__ volatile ("mov $231, %eax; syscall"); /* exit_group */
 }
