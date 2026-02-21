@@ -30,6 +30,7 @@
 #define FD_X86_EFER_LMA (1U<<10)
 #define FD_X86_EFER_NXE (1U<<11)
 
+#define FD_X86_MSR_EFER          0xc0000080
 #define FD_X86_MSR_STAR          0xc0000081
 #define FD_X86_MSR_LSTAR         0xc0000082
 #define FD_X86_MSR_FSBASE        0xc0000100
