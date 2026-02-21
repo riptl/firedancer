@@ -447,8 +447,8 @@ THE SOFTWARE.
 
 =======================================================================
 
-Firedancer binaries include cryptographic subroutines from s2n-bignum.
-Imported ca 2024-Nov.
+Firedancer includes a copy of cryptographic subroutines from s2n-bignum.
+Imported ca 2026-Feb to src/ballet/s2n-bignum.
 
 https://github.com/awslabs/s2n-bignum/
 

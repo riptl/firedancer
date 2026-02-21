@@ -136,7 +136,6 @@ fetch () {
   fi
   checkout_repo zstd      https://github.com/facebook/zstd            "v1.5.7"
   checkout_repo lz4       https://github.com/lz4/lz4                  "v1.10.0"
-  checkout_repo s2n       https://github.com/awslabs/s2n-bignum       "" "4d2e22a"
   checkout_repo openssl   https://github.com/openssl/openssl          "openssl-3.6.0"
   checkout_repo blst      https://github.com/supranational/blst       "v0.3.13"
   if [[ $DEVMODE == 1 ]]; then
@@ -438,22 +437,6 @@ install_lz4 () {
   echo "[+] Successfully installed lz4"
 }
 
-install_s2n () {
-  cd "$PREFIX/git/s2n"
-
-  echo "[+] Installing s2n-bignum to $PREFIX"
-  if [[ "$(uname -m)" == x86_64 ]]; then
-    make -C x86
-    cp x86/libs2nbignum.a "$PREFIX/lib"
-  elif [[ "$(uname -m)" == aarch64 ]]; then
-    make -C arm
-    cp arm/libs2nbignum.a "$PREFIX/lib"
-  fi
-
-  cp include/* "$PREFIX/include"
-  echo "[+] Successfully installed s2n-bignum"
-}
-
 install_blst () {
   cd "$PREFIX/git/blst"
 
@@ -681,7 +664,6 @@ install () {
   fi
   ( install_zstd      )
   ( install_lz4       )
-  ( install_s2n       )
   ( install_openssl   )
   ( install_blst )
   if [[ $DEVMODE == 1 ]]; then
