@@ -23,4 +23,8 @@ struct __attribute__((packed)) fd_x86_tss64 {
 
 typedef struct fd_x86_tss64 fd_x86_tss64_t;
 
+/* I/O permission bitmap: 65536 ports / 8 = 8192 bytes, plus trailing 0xFF */
+#define FD_X86_TSS64_IOPB_SZ 8192UL
+#define FD_X86_TSS64_FULL_SZ (sizeof(fd_x86_tss64_t) + FD_X86_TSS64_IOPB_SZ + 1UL)
+
 #endif /* HEADER_fd_src_fdos_x86_fd_x86_tss_h */

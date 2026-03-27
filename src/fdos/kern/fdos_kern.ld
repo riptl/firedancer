@@ -1,4 +1,4 @@
-ENTRY(fdos_kern_entry)
+ENTRY(0)
 OUTPUT_FORMAT(elf64-x86-64)
 
 PHDRS
@@ -13,8 +13,6 @@ SECTIONS
   . = 0xffffffff80000000;
 
   .text : AT(ADDR(.text) - 0xffffffff80000000) {
-    *(.text.hlt)
-    *(.text.syscall)
     *(.text)
     . = ALIGN(4K);
   } :CODE
@@ -48,25 +46,25 @@ SECTIONS
   }
 
   .got.plt (INFO) : { *(.got.plt) }
-	ASSERT(SIZEOF(.got.plt) == 0, "Unexpected GOT entries detected!")
+  ASSERT(SIZEOF(.got.plt) == 0, "Unexpected GOT entries detected!")
 
   .got : {
-		*(.got) *(.igot.*)
-	}
-	ASSERT(SIZEOF(.got) == 0, "Unexpected GOT entries detected!")
+    *(.got) *(.igot.*)
+  }
+  ASSERT(SIZEOF(.got) == 0, "Unexpected GOT entries detected!")
 
   .plt : {
-		*(.plt) *(.plt.*) *(.iplt)
-	}
-	ASSERT(SIZEOF(.plt) == 0, "Unexpected run-time procedure linkages detected!")
+    *(.plt) *(.plt.*) *(.iplt)
+  }
+  ASSERT(SIZEOF(.plt) == 0, "Unexpected run-time procedure linkages detected!")
 
-	.rel.dyn : {
-		*(.rel.*) *(.rel_*)
-	}
-	ASSERT(SIZEOF(.rel.dyn) == 0, "Unexpected run-time relocations (.rel) detected!")
+  .rel.dyn : {
+    *(.rel.*) *(.rel_*)
+  }
+  ASSERT(SIZEOF(.rel.dyn) == 0, "Unexpected run-time relocations (.rel) detected!")
 
-	.rela.dyn : {
-		*(.rela.*) *(.rela_*)
-	}
-	ASSERT(SIZEOF(.rela.dyn) == 0, "Unexpected run-time relocations (.rela) detected!")
+  .rela.dyn : {
+    *(.rela.*) *(.rela_*)
+  }
+  ASSERT(SIZEOF(.rela.dyn) == 0, "Unexpected run-time relocations (.rela) detected!")
 }

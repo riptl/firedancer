@@ -54,6 +54,22 @@
 #define FD_X86_CPUID_07_0_ECX_AVX512VPOPCNTDQ   (1U<<14) /* AVX512VPOPCNTDQ */
 #define FD_X86_CPUID_07_0_ECX_VA57              (1U<<16) /* 5-level paging */
 
+#define FD_X86_CPUID_07_1_EAX_SHA512            (1U<< 0) /* SHA512 */
+#define FD_X86_CPUID_07_1_EAX_AVX_VNNI          (1U<< 4) /* AVX-VNNI */
+#define FD_X86_CPUID_07_1_EAX_AVX512BF16        (1U<< 5) /* AVX512BF16 */
+#define FD_X86_CPUID_07_1_EAX_FRED              (1U<<17) /* Flexible Return and Event Delivery (FRED) */
+#define FD_X86_CPUID_07_1_EAX_LKGS              (1U<<18) /* LKGS */
+#define FD_X86_CPUID_07_1_EAX_NMI_SOURCE        (1U<<20) /* FRED NMI SOURCE extension */
+#define FD_X86_CPUID_07_1_EAX_AMX_FP16          (1U<<21) /* AMX FP16 */
+#define FD_X86_CPUID_07_1_EAX_AVX_IFMA          (1U<<23) /* AVX_IFMA */
+#define FD_X86_CPUID_07_1_EAX_LAM               (1U<<26) /* Linear Address Masking */
+
+#define FD_X86_CPUID_07_1_EDX_AVX_VNNI_INT8     (1U<< 4) /* AVX VNNI INT8 */
+#define FD_X86_CPUID_07_1_EDX_AMX_COMPLEX       (1U<< 8) /* AMX complex */
+#define FD_X86_CPUID_07_1_EDX_AVX_VNNI_INT16    (1U<<10) /* AVX VNNI INT16 */
+#define FD_X86_CPUID_07_1_EDX_AVX10             (1U<<19) /* AVX10 */
+#define FD_X86_CPUID_07_1_EDX_APX_F             (1U<<21) /* APX Foundation */
+
 /* https://www.sandpile.org/x86/cpuid.htm#level_8000_0001h */
 
 #define FD_X86_CPUID_8000_01_EDX_TSC            (1U<< 4) /* TSC */

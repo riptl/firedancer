@@ -3,6 +3,7 @@
 #include "fdos_kvm.h"
 #include "../fdos_vmm.h"
 #include "../x86/fd_x86_disasm.h"
+#include "../x86/fd_x86_msr.h"
 #include "fdos_env.h"
 #include <errno.h>
 #include <stdio.h>
@@ -129,10 +130,61 @@ trace_rip( fdos_env_t *     env,
 }
 
 static void
-maybe_handle_interrupt( fdos_env_t * kern,
+maybe_handle_fred_event( fdos_env_t * env,
+                         int          vcpu_fd,
+                         ulong        rip ) {
+  ulong hlt0 = env->fred_handler_gvaddr;
+  ulong hlt1 = hlt0 + 4096;
+  if( FD_UNLIKELY( rip<hlt0 || rip>=hlt1 ) ) return;
+
+  struct kvm_regs regs;
+  if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_REGS, &regs )<0 ) ) {
+    FD_LOG_ERR(( "KVM_GET_REGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+  __attribute__((aligned(alignof(struct kvm_msrs))))
+  uchar msrs_buf[ sizeof(struct kvm_msrs) + sizeof(struct kvm_msr_entry) ];
+  struct kvm_msrs * msr_req = fd_type_pun( msrs_buf );
+  msr_req->nmsrs = 1;
+  msr_req->entries[ 0 ].index = FD_X86_MSR_FRED_CONFIG;
+  if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_MSRS, msr_req )<0 ) ) {
+    FD_LOG_ERR(( "KVM_GET_MSRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
+
+  _Bool ring3      = rip < hlt0+256;
+  uint  error_code = regs.r12 & 0xfff;
+  ulong fault_rip  = regs.r13;
+  uint  evtype     = ( regs.r14 >> 48 ) & 0x0f;
+  uint  idx        = ( regs.r14 >> 32 ) & 0xff;
+  uint  instr_len  = ( regs.r14 >> 60 );
+  ulong event_data = regs.r15;
+  ulong csl        = msr_req->entries[ 0 ].data & 0x3;
+
+  FD_LOG_NOTICE(( "Registers:\n"
+                  "  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n"
+                  "  rsi=%016llx rdi=%016llx rsp=%016llx rbp=%016llx\n"
+                  "  r8 =%016llx r9 =%016llx r10=%016llx r11=%016llx",
+                  regs.rax, regs.rbx, regs.rcx, regs.rdx,
+                  regs.rsi, regs.rdi, regs.rsp, regs.rbp,
+                  regs.r8,  regs.r9,  regs.r10, regs.r11 ));
+  FD_LOG_ERR(( "Caught FRED event (stack level %lu)\n"
+               "  event_type=%d-%s\n"
+               "  vector=%02x-%s\n"
+               "  fault_address=%#lx (%u bytes, ring %c)\n"
+               "  event_data=%#lx\n"
+               "  error_code=%06x",
+               csl,
+               evtype, fd_x86_evtype_cstr( evtype ),
+               idx,    fd_x86_interrupt_cstr( idx ),
+               fault_rip, instr_len, ring3?'3':'0',
+               event_data,
+               error_code ));
+}
+
+static void
+maybe_handle_interrupt( fdos_env_t * env,
                         int          vcpu_fd,
                         ulong        rip ) {
-  ulong hlt0 = kern->text.gvaddr;
+  ulong hlt0 = env->int_handler_gvaddr;
   ulong hlt1 = hlt0 + 256;
   if( FD_UNLIKELY( rip<hlt0 || rip>=hlt1 ) ) return;
   uint idx = (uint)( rip - hlt0 );
@@ -157,7 +209,6 @@ maybe_handle_interrupt( fdos_env_t * kern,
                   regs.rsi, regs.rdi, regs.rsp, regs.rbp,
                   regs.r8,  regs.r9,  regs.r10, regs.r11,
                   regs.r12, regs.r13, regs.r14, regs.r15 ));
-  fdos_vmm_printf( (ulong *)kern->vmm_alloc->haddr, stderr, kern->vmm_alloc );
   FD_LOG_ERR(( "Caught interrupt type %02x-%s", idx, fd_x86_interrupt_cstr( idx ) ));
 }
 
@@ -187,7 +238,8 @@ fdos_kvm_run( fdos_env_t *     kern,
     }
     return 0;
   case KVM_EXIT_DEBUG: {
-    trace_rip( kern, kvm_run, vcpu_fd, kvm_run->debug.arch.pc );
+    ulong pc = kvm_run->debug.arch.pc;
+    trace_rip( kern, kvm_run, vcpu_fd, pc );
     return 0;
   }
   case KVM_EXIT_HLT: {
@@ -196,7 +248,8 @@ fdos_kvm_run( fdos_env_t *     kern,
       FD_LOG_ERR(( "KVM_GET_REGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
     }
     ulong rip = regs.rip - 1UL; /* why is this off by one? */
-    maybe_handle_interrupt( kern, vcpu_fd, rip );
+    if( kern->fred ) maybe_handle_fred_event( kern, vcpu_fd, rip );
+    else             maybe_handle_interrupt ( kern, vcpu_fd, rip );
     FD_LOG_NOTICE(( "KVM guest issued HLT instruction" ));
     return 1;
   }

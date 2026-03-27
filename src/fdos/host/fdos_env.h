@@ -59,7 +59,23 @@ struct fdos_env {
   fdos_vmo_t text;
   fdos_vmo_t rodata;
   fdos_vmo_t data;
-  ulong      entry_gvaddr;
+
+  /* Kernel entrypoint */
+  ulong entry_gvaddr;
+  ulong entry_idt_gvaddr;
+  ulong entry_fred_gvaddr;
+
+  /* ring0->ring3 context switch routine */
+  ulong ring3_enter_ptr_off;  /* .data offset of fdos_ring3_enter_ptr */
+  ulong ring3_enter_idt_gvaddr;
+  ulong ring3_enter_fred_gvaddr;
+
+  /* ring3->ring0 context switch */
+  ulong syscall_handler_gvaddr;
+
+  /* Interrupt handler */
+  ulong int_handler_gvaddr; /* 256 bytes, 1 byte for each interrupt descriptor */
+  ulong fred_handler_gvaddr;
 
   /* TSS (kernel, user) */
   fd_x86_tss64_t * tss_kern;
@@ -68,9 +84,6 @@ struct fdos_env {
   /* GDT */
   ulong          gdt_gvaddr;
   fd_x86_gdt_t * gdt;
-
-  /* Default interrupt handler */
-  ulong int_handler_gvaddr; /* 256 bytes, 1 byte for each interrupt descriptor */
 
   /* IDT */
   ulong               idt_gvaddr;
@@ -86,10 +99,11 @@ struct fdos_env {
   ulong          pvclock_kern_gvaddr;
   ulong          pvclock_user_gvaddr;
 
-  /* Trace mode */
+  /* Flags */
 # define FDOS_TRACE_MODE_OFF 0
 # define FDOS_TRACE_MODE_RIP 1
-  int trace_mode;
+  uint trace_mode : 4;
+  uint fred       : 1;
 };
 
 typedef struct fdos_env fdos_env_t;
@@ -98,6 +112,9 @@ void
 fdos_env_img_load( fdos_env_t *  env,
                    uchar const * bin,
                    ulong         bin_sz );
+
+void
+fdos_env_img_patch( fdos_env_t * env );
 
 /* fdos_env_create sets up all fdos kernel data structures
    needed to bootstrap a KVM ring 0 guest environment. */

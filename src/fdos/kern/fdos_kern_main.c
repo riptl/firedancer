@@ -1,30 +1,23 @@
-/* Entrypoint for FiredancerOS kernel */
-
 #include "fdos_hypercall.h"
+#include "fdos_kern_def.h"
+#include "fdos_kern_ctx.h"
 #include "../fdos_pvclock.h"
 #include "../fdos_vmm.h"
 #include "../x86/fd_x86_mmu.h"
-#include "../kern/fdos_kern_def.h"
 #include "../../util/log/fd_log.h"
-#include <stdarg.h>
 #include <immintrin.h>
 
-__attribute__((section(".text.hlt")))
-__attribute__((naked))
-void
-hlt_blob( void ) {
-  __asm__ volatile (".space 256, 0xf4");
-}
-
-__attribute__((section(".text.syscall")))
 __attribute__((naked)) void
-syscall_handler( void ) {
+fdos_syscall_handler( void ) {
   __asm__ volatile (
       "cmp $231, %eax;\n"
       "je longjmp;\n"
       "ud2;\n"
   );
 }
+
+void (* fdos_ring3_enter_ptr)( ulong new_rsp, ulong new_rip )
+  = (__typeof__(fdos_ring3_enter_ptr))0x41414141;
 
 /* fd_util system environment *****************************************/
 
@@ -84,38 +77,15 @@ longjmp( void ) {
   );
 }
 
-/* ring3 API */
-
-__attribute__((naked)) void
-ring3_enter( ulong user_stack_top_gpaddr, /* rdi */
-             ulong function ) {           /* rsi */
-  __asm__ volatile (
-      "pushq $0x1b;\n" /* segment 3 */
-      "pushq %rdi;\n"  /* user stack */
-      "pushq $0x23;\n" /* segment 4 */
-      "pushq %rsi;\n"
-      "lretq;\n"
-  );
-}
-
-__attribute__((naked)) static void
-ring3_end( void ) {
-  __asm__ volatile (
-      "mov $231, %eax;\n"
-      "syscall;\n"
-      "ud2;\n"
-  );
-}
-
 static void
-ring3_run( ulong stack_top_gvaddr,
-           ulong func ) {
+farcall_ring3( ulong stack_top_gvaddr,
+               ulong func ) {
   fdos_vmm_alloc_t * alloc = &g_vmm_alloc;
   ulong * pml4 = (ulong *)alloc->haddr;
   ulong   next = alloc->next;
 
   /* Fast variant of vmm_map_range */
-  //fdos_vmm_map_range( pml4, 0x1000UL, FDOS_GPADDR_SHMEM, 4096UL, FD_X86_PT_US|FD_X86_PT_RW, alloc );
+  // fdos_vmm_map_range( pml4, 0x1000UL, FDOS_GPADDR_SHMEM, 4096UL, FD_X86_PT_US|FD_X86_PT_RW, alloc );
   ulong   pml3_gpaddr    = alloc->gpaddr + next;
   ulong   pml2_gpaddr    = alloc->gpaddr + next +   FD_X86_PM_SZ;
   ulong   pml1_gpaddr    = alloc->gpaddr + next + 2*FD_X86_PM_SZ;
@@ -135,7 +105,7 @@ ring3_run( ulong stack_top_gvaddr,
   pml1[ 1 ] = FDOS_GPADDR_SHMEM | FD_X86_PT_P | FD_X86_PT_RW | FD_X86_PT_US | FD_X86_PT_XD;
 
   if( setjmp()==0 ) {
-    ring3_enter( stack_top_gvaddr, func );
+    fdos_ring3_enter( stack_top_gvaddr, func );
     __builtin_unreachable();
   }
 
@@ -146,6 +116,7 @@ ring3_run( ulong stack_top_gvaddr,
   ulong descriptor[ 2 ] = { 0UL, 0UL };
   _invpcid( 3, descriptor ); /* invalidate TLB except global pages */
 }
+
 
 __attribute__((noreturn)) void
 fdos_kern_main( fdos_kern_args_t * args ) {
@@ -159,43 +130,19 @@ fdos_kern_main( fdos_kern_args_t * args ) {
   FD_LOG_NOTICE(( "Hello world!" ));
   ulong const ustack = args->stack_user_top_gvaddr-8UL;
   ulong const uentry = args->ring3_entry_gvaddr;
-  FD_STORE( ulong, (void *)ustack, (ulong)ring3_end );
+  FD_STORE( ulong, (void *)ustack, (ulong)fdos_ring3_exit );
 
-  ring3_run( ustack, uentry );
+  farcall_ring3( ustack, uentry );
   FD_LOG_NOTICE(( "Returned from ring 3" ));
 
   FD_LOG_NOTICE(( "Benchmarking" ));
   long dt = -fd_log_wallclock();
   ulong iter = (ulong)1e7;
   for( ulong i=0UL; i<iter; i++ ) {
-    ring3_run( ustack, uentry );
+    farcall_ring3( ustack, uentry );
   }
   dt += fd_log_wallclock(); (void)dt;
   FD_LOG_NOTICE(( "Context switching: %lu ns/iter", (ulong)( (double)dt/(double)iter ) ));
 
   FD_LOG_ERR(( "Goodbye" ));
-}
-
-__attribute__((noreturn)) void
-fdos_kern_entry( fdos_kern_args_t * args ) {
-
-  /* On entry, our GDT, code, and data segment selectors were set up by
-     the host.  However, we will need to far return to update the
-     descriptor cache.  Otherwise, we would run in the KVM guest default
-     state. */
-
-  __asm__ volatile (
-      /* Select segment 1, privilege level 0 */
-      "pushq $8;\n"
-      /* Return address (entry1) */
-      "movabsq $fdos_kern_main, %%rax;\n"
-      "pushq %%rax;\n"
-      /* First argument to entry1 */
-      "movq %0, %%rdi;\n"
-      /* Far return */
-      "lretq;\n"
-      : : "r" (args) : "rax", "rdi", "memory"
-  );
-
-  __builtin_unreachable();
 }

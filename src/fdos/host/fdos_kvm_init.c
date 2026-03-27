@@ -1,3 +1,4 @@
+#include "fdos_env.h"
 #include "fdos_kvm.h"
 #include "fdos_cpuid.h"
 #include "../kern/fdos_kern_def.h"
@@ -45,19 +46,17 @@ vcpu_cpuid_set( int kvm_fd,
 static void
 vcpu_sregs_set( fdos_env_t * env,
                 int          vcpu_fd ) {
-  /* GDT / IDT */
 
   struct kvm_sregs sregs[1];
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_GET_SREGS, sregs )<0 ) ) {
     FD_LOG_ERR(( "KVM_GET_SREGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
   }
 
+  /* GDT */
+
   sregs->gdt.base  = env->gdt_gvaddr;
   sregs->gdt.limit = (FDOS_GDT_CNT * sizeof(ulong)) - 1UL;
   memset( sregs->gdt.padding, 0, sizeof(sregs->gdt.padding) );
-
-  sregs->idt.base  = env->idt_gvaddr;
-  sregs->idt.limit = (256 * sizeof(fd_x86_idt_gate_t)) - 1UL;
 
   /* Segment descriptors */
 
@@ -92,10 +91,17 @@ vcpu_sregs_set( fdos_env_t * env,
   sregs->gs = ds;
   sregs->ss = ds;
 
-  /* Wire up TSS */
+  /* IDT */
+
+  if( !env->fred ) {
+    sregs->idt.base  = env->idt_gvaddr;
+    sregs->idt.limit = (256 * sizeof(fd_x86_idt_gate_t)) - 1UL;
+  }
+
+  /* TSS */
 
   sregs->tr.base     = env->tss_kern_gvaddr;
-  sregs->tr.limit    = sizeof(fd_x86_tss64_t)-1UL;
+  sregs->tr.limit    = FD_X86_TSS64_FULL_SZ - 1UL;
   sregs->tr.selector = 0x28;
   sregs->tr.type     = 0xb;
   sregs->tr.present  = 1;
@@ -114,7 +120,8 @@ vcpu_sregs_set( fdos_env_t * env,
       FD_X86_CR4_PGE |
       FD_X86_CR4_OSFXSR |
       FD_X86_CR4_FSGSBASE |
-      FD_X86_CR4_OSXSAVE;
+      FD_X86_CR4_OSXSAVE |
+      ( env->fred ? FD_X86_CR4_FRED : 0 );
 
   sregs->cr0 =
       FD_X86_CR0_PE |
@@ -130,6 +137,10 @@ vcpu_sregs_set( fdos_env_t * env,
       FD_X86_EFER_LME |
       FD_X86_EFER_LMA |
       FD_X86_EFER_NXE;
+
+  if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_SREGS, sregs )<0 ) ) {
+    FD_LOG_ERR(( "KVM_SET_SREGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
+  }
 
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_SREGS, sregs )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_SREGS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
@@ -166,35 +177,64 @@ vcpu_xcrs_set( int   vcpu_fd,
 static void
 vcpu_msrs_set( fdos_env_t * env,
                int          vcpu_fd ) {
+# define MSR_CNT 11
   __attribute__((aligned(alignof(struct kvm_msrs))))
-  uchar msrs_buf[ sizeof(struct kvm_msrs) + 5*sizeof(struct kvm_msr_entry) ];
+  uchar msrs_buf[ sizeof(struct kvm_msrs) + MSR_CNT*sizeof(struct kvm_msr_entry) ];
 
   struct kvm_msrs * msr_req = fd_type_pun( msrs_buf );
-  msr_req->nmsrs = 5;
+  msr_req->nmsrs = MSR_CNT;
+  ulong i = 0UL;
 
   /* FS base */
 
   ulong fs0; __asm__ ( "movq %%fs:0x0, %0" : "=r"(fs0) );
-  msr_req->entries[0].index = FD_X86_MSR_FSBASE;
-  msr_req->entries[0].data  = fs0;
+  msr_req->entries[ i   ].index = FD_X86_MSR_FSBASE;
+  msr_req->entries[ i++ ].data  = fs0;
 
   /* SYSCALL configuration */
 
-  ulong msr_star = ((ulong)0x08 << 32) | /* kernel CS */
-                   ((ulong)0x10 << 48);  /* user CS */
-  msr_req->entries[1].index = FD_X86_MSR_STAR;
-  msr_req->entries[1].data  = msr_star;
+  ulong msr_star = (( (FDOS_GDT_IDX_KERN_CS <<3)   )<<32) | /* sysret cs base -> kernel CS */
+                   (( (FDOS_GDT_IDX_U32_CODE<<3)|3 )<<48);  /* user CS */
+  msr_req->entries[ i   ].index = FD_X86_MSR_STAR;
+  msr_req->entries[ i++ ].data  = msr_star;
 
-  ulong msr_lstar = env->text.gvaddr + 256UL;
-  msr_req->entries[2].index = FD_X86_MSR_LSTAR;
-  msr_req->entries[2].data  = msr_lstar;
+  ulong msr_lstar = env->syscall_handler_gvaddr;
+  msr_req->entries[ i   ].index = FD_X86_MSR_LSTAR;
+  msr_req->entries[ i++ ].data  = msr_lstar;
 
   /* KVM clock */
 
-  msr_req->entries[3].index = FD_X86_MSR_PVCLOCK_EPOCH;
-  msr_req->entries[3].data  = env->pvclock_gpaddr;
-  msr_req->entries[4].index = FD_X86_MSR_PVCLOCK_OFF;
-  msr_req->entries[4].data  = (env->pvclock_gpaddr + offsetof(fd_pvclock_t, off)) | 1UL;
+  msr_req->entries[ i   ].index = FD_X86_MSR_PVCLOCK_EPOCH;
+  msr_req->entries[ i++ ].data  = env->pvclock_gpaddr;
+  msr_req->entries[ i   ].index = FD_X86_MSR_PVCLOCK_OFF;
+  msr_req->entries[ i++ ].data  = (env->pvclock_gpaddr + offsetof(fd_pvclock_t, off)) | 1UL;
+
+  /* FRED stack pointers */
+
+  if( env->fred ) {
+
+    msr_req->entries[ i   ].index = FD_X86_MSR_FRED_CONFIG;
+    msr_req->entries[ i++ ].data  = env->entry_fred_gvaddr;
+
+    msr_req->entries[ i   ].index = FD_X86_MSR_FRED_STKLVLS;
+    msr_req->entries[ i++ ].data  = 0UL;
+
+    msr_req->entries[ i   ].index = FD_X86_MSR_FRED_RSP0;
+    msr_req->entries[ i++ ].data  = env->stack_int_top_gvaddr;
+
+    msr_req->entries[ i   ].index = FD_X86_MSR_FRED_RSP1;
+    msr_req->entries[ i++ ].data  = env->stack_int_top_gvaddr;
+
+    msr_req->entries[ i   ].index = FD_X86_MSR_FRED_RSP2;
+    msr_req->entries[ i++ ].data  = env->stack_int_top_gvaddr;
+
+    msr_req->entries[ i   ].index = FD_X86_MSR_FRED_RSP3;
+    msr_req->entries[ i++ ].data  = env->stack_int_top_gvaddr;
+
+  }
+
+  FD_TEST( i<=MSR_CNT );
+# undef MSR_CNT
 
   if( FD_UNLIKELY( ioctl( vcpu_fd, KVM_SET_MSRS, msr_req )<0 ) ) {
     FD_LOG_ERR(( "KVM_SET_MSRS failed (%i-%s)", errno, fd_io_strerror( errno ) ));
@@ -247,6 +287,8 @@ fdos_kvm_init( fdos_env_t * env,
   vm_map_phys   ( env, vm_fd );
   vm_caps_set   ( vm_fd );
   ulong cpu_features = vcpu_cpuid_set( kvm_fd, vcpu_fd );
+  env->fred = !!( cpu_features & FDOS_CPU_FEAT_FRED );
+  fdos_env_img_patch( env );
   vcpu_sregs_set( env, vcpu_fd );
   vcpu_xcrs_set ( vcpu_fd, cpu_features );
   vcpu_msrs_set ( env, vcpu_fd );

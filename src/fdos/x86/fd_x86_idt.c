@@ -54,3 +54,25 @@ fd_x86_interrupt_cstr( uint num ) {
     return "??";
   }
 }
+
+char const *
+fd_x86_evtype_cstr( uint num ) {
+  switch( num ) {
+  case FD_X86_EVTYPE_INTR:
+    return "INTR";
+  case FD_X86_EVTYPE_NMI:
+    return "NMI";
+  case FD_X86_EVTYPE_EXC:
+    return "EXC";
+  case FD_X86_EVTYPE_INTN:
+    return "INTN";
+  case FD_X86_EVTYPE_INT1:
+    return "INT1";
+  case FD_X86_EVTYPE_INT3:
+    return "INT3";
+  case FD_X86_EVTYPE_OTHER:
+    return "OTHER";
+  default:
+    return "??";
+  }
+}

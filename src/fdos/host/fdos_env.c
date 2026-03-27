@@ -16,20 +16,25 @@
 #include "../fdos_pvclock.h"
 #include <unistd.h>
 
-/* fdos_env_tss sets up a dummy Task State Segment */
+/* fdos_env_tss sets up a Task State Segment with an I/O permission
+   bitmap that allows ring 3 access to all I/O ports. */
 
 static void
 fdos_env_tss( fdos_env_t * env ) {
-  ulong tss_kern_gaddr = fd_wksp_alloc( env->wksp_kern_heap, 16UL, sizeof(fd_x86_tss64_t), 1UL );
+  ulong tss_kern_gaddr = fd_wksp_alloc( env->wksp_kern_heap, 16UL, FD_X86_TSS64_FULL_SZ, 1UL );
   FD_TEST( tss_kern_gaddr );
 
   fd_x86_tss64_t * tss_kern = fd_wksp_laddr_fast( env->wksp_kern_heap, tss_kern_gaddr );
 
-  memset( tss_kern, 0, sizeof(fd_x86_tss64_t) );
+  /* Zero the entire region: TSS header + IOPB (0=allow all ports) */
+  memset( tss_kern, 0, FD_X86_TSS64_FULL_SZ );
 
   tss_kern->rsp0       = env->stack_kern_top_gvaddr;
-  tss_kern->iomap_base = 0x1000; /* exceeds tss_limit -> no IO map */
+  tss_kern->iomap_base = (ushort)sizeof(fd_x86_tss64_t);
   tss_kern->ist1       = env->stack_int_top_gvaddr;
+
+  /* Trailing 0xFF byte terminates the I/O permission bitmap */
+  ((uchar *)tss_kern)[ sizeof(fd_x86_tss64_t) + FD_X86_TSS64_IOPB_SZ ] = 0xFF;
 
   env->tss_kern_gvaddr = FDOS_GVADDR_KERN_HEAP + tss_kern_gaddr;
 }
@@ -44,7 +49,8 @@ fdos_env_gdt( fdos_env_t * env ) {
   env->gdt_gvaddr = FDOS_GVADDR_KERN_HEAP + gdt_gaddr;
   fd_x86_gdt_t * gdt = fd_wksp_laddr_fast( env->wksp_kern_heap, gdt_gaddr );
   gdt[ FDOS_GDT_IDX_NULL ] = (fd_x86_gdt_t) {0};
-  gdt[ FDOS_GDT_IDX_KERN_CODE ] = (fd_x86_gdt_t) {
+  gdt[ FDOS_GDT_IDX_K32_CS ] = (fd_x86_gdt_t) {0};
+  gdt[ FDOS_GDT_IDX_KERN_CS ] = (fd_x86_gdt_t) {
     .limit0 = 0xffff,
     .base0  = 0,
     .base1  = 0,
@@ -59,7 +65,7 @@ fdos_env_gdt( fdos_env_t * env ) {
     .g      = 1,
     .base2  = 0
   };
-  gdt[ FDOS_GDT_IDX_KERN_DATA ] = (fd_x86_gdt_t) {
+  gdt[ FDOS_GDT_IDX_KERN_DS ] = (fd_x86_gdt_t) {
     .limit0 = 0xffff,
     .base0  = 0,
     .base1  = 0,
@@ -74,7 +80,8 @@ fdos_env_gdt( fdos_env_t * env ) {
     .g      = 1,
     .base2  = 0
   };
-  gdt[ FDOS_GDT_IDX_USER_CODE ] = (fd_x86_gdt_t) {
+  gdt[ FDOS_GDT_IDX_U32_CODE ] = (fd_x86_gdt_t) {0};
+  gdt[ FDOS_GDT_IDX_USER_CS ] = (fd_x86_gdt_t) {
     .limit0 = 0xffff,
     .base0  = 0,
     .base1  = 0,
@@ -89,7 +96,7 @@ fdos_env_gdt( fdos_env_t * env ) {
     .g      = 1,
     .base2  = 0
   };
-  gdt[ FDOS_GDT_IDX_USER_DATA ] = (fd_x86_gdt_t) {
+  gdt[ FDOS_GDT_IDX_USER_DS ] = (fd_x86_gdt_t) {
     .limit0 = 0xffff,
     .base0  = 0,
     .base1  = 0,
@@ -106,7 +113,7 @@ fdos_env_gdt( fdos_env_t * env ) {
   };
   /* TSS */
   ulong tss_base  = env->tss_kern_gvaddr;
-  uint  tss_limit = sizeof(fd_x86_tss64_t)-1U;
+  uint  tss_limit = (uint)FD_X86_TSS64_FULL_SZ - 1U;
   gdt[ FDOS_GDT_IDX_TSS ] = (fd_x86_gdt_t) {
     .limit0 = tss_limit & 0xffffUL,
     .base0  = (ushort)( tss_base & 0xffffUL ),
@@ -132,10 +139,6 @@ fdos_env_gdt( fdos_env_t * env ) {
 
 static void
 fdos_env_idt( fdos_env_t * env ) {
-  /* Interrupt handler */
-  ulong interrupt_handler_gvaddr = env->text.gvaddr;
-  env->int_handler_gvaddr = interrupt_handler_gvaddr;
-
   /* IDT */
   ulong               idt_gaddr  = fd_wksp_alloc( env->wksp_kern_heap, 16UL, 256*sizeof(fd_x86_idt_gate_t), 1UL );
   FD_TEST( idt_gaddr );
@@ -180,9 +183,11 @@ fdos_env_shared( fdos_env_t * env ) {
 
 static void
 fdos_env_ring0_setup( fdos_env_t * env ) {
-  fdos_env_tss   ( env );
-  fdos_env_gdt   ( env );
-  fdos_env_idt   ( env );
+  fdos_env_tss( env );
+  fdos_env_gdt( env );
+  if( !env->fred ) {
+    fdos_env_idt( env );
+  }
   fdos_env_shared( env );
 }
 
@@ -260,9 +265,9 @@ fdos_env_create( fdos_env_t *  env,
     .wksp_kern_stack  = wksp_kern_stack,
     .wksp_user_mem    = wksp_user_mem,
 
-    .stack_kern_top_gvaddr = FDOS_GVADDR_KERN_STACK + 2*FD_SHMEM_HUGE_PAGE_SZ - 8192,
-    .stack_kern_sz         = 2*FD_SHMEM_HUGE_PAGE_SZ,
-    .stack_int_top_gvaddr  = FDOS_GVADDR_KERN_STACK + 2*FD_SHMEM_HUGE_PAGE_SZ - 4096,
+    .stack_kern_top_gvaddr = FDOS_GVADDR_KERN_STACK + FDOS_KERN_STACK_SZ - 8192,
+    .stack_kern_sz         = FDOS_KERN_STACK_SZ,
+    .stack_int_top_gvaddr  = FDOS_GVADDR_KERN_STACK + 4096,
     .stack_int_sz          = 4096,
   };
 

@@ -42,4 +42,15 @@ typedef struct fd_x86_idt_gate fd_x86_idt_gate_t;
 char const *
 fd_x86_interrupt_cstr( uint num );
 
+#define FD_X86_EVTYPE_INTR  0
+#define FD_X86_EVTYPE_NMI   2
+#define FD_X86_EVTYPE_EXC   3
+#define FD_X86_EVTYPE_INTN  4
+#define FD_X86_EVTYPE_INT1  5
+#define FD_X86_EVTYPE_INT3  6
+#define FD_X86_EVTYPE_OTHER 7
+
+char const *
+fd_x86_evtype_cstr( uint num );
+
 #endif /* HEADER_fd_src_fdos_x86_fd_x86_idt_h */

@@ -75,6 +75,13 @@ fdos_cpuid_check_push( fdos_cpuid_check_t * check,
     check->cpu_feat |=
         ( ebx & FD_X86_CPUID_07_0_EBX_AVX512F ) ? FDOS_CPU_FEAT_REG_ZMM : 0UL;
     break;
+  case CPUID_PATH( 0x0007U, 0x01 ):
+    check->cpuid_07_1 = 1;
+    check->cpu_feat |=
+        ( eax & FD_X86_CPUID_07_1_EAX_FRED  ) ? FDOS_CPU_FEAT_FRED : 0UL;
+    check->cpu_feat |=
+        ( edx & FD_X86_CPUID_07_1_EDX_APX_F ) ? FDOS_CPU_FEAT_APX  : 0UL;
+    break;
 # undef CPUID_PATH
   }
 }
@@ -83,13 +90,18 @@ void
 fdos_cpuid_validate( fdos_cpuid_check_t const * check ) {
   if( FD_UNLIKELY( !check->cpuid_01_0 ) ) FD_LOG_ERR(( "CPUID 00000001:00 is missing" ));
   if( FD_UNLIKELY( !check->cpuid_07_0 ) ) FD_LOG_ERR(( "CPUID 00000007:00 is missing" ));
+  if( FD_UNLIKELY( !check->cpuid_07_1 ) ) FD_LOG_ERR(( "CPUID 00000007:01 is missing" ));
 
-  ulong     cpu_feat = check->cpu_feat;
-  int const feat_xmm = !!( cpu_feat & FDOS_CPU_FEAT_REG_XMM );
-  int const feat_ymm = !!( cpu_feat & FDOS_CPU_FEAT_REG_YMM );
-  int const feat_zmm = !!( cpu_feat & FDOS_CPU_FEAT_REG_ZMM );
+  ulong     cpu_feat  = check->cpu_feat;
+  int const feat_xmm  = !!( cpu_feat & FDOS_CPU_FEAT_REG_XMM );
+  int const feat_ymm  = !!( cpu_feat & FDOS_CPU_FEAT_REG_YMM );
+  int const feat_zmm  = !!( cpu_feat & FDOS_CPU_FEAT_REG_ZMM );
+  int const feat_fred = !!( cpu_feat & FDOS_CPU_FEAT_FRED    ); 
+  int const feat_apx  = !!( cpu_feat & FDOS_CPU_FEAT_APX     ); 
   if( FD_UNLIKELY( !feat_xmm ) ) FD_LOG_ERR(( "vCPU has no xmm registers (CPUID detection broken?)" ));
   if( feat_ymm ) FD_LOG_INFO(( "vCPU has ymm registers (AVX)"    ));
   if( feat_zmm ) FD_LOG_INFO(( "vCPU has zmm registers (AVX512)" ));
   if( FD_UNLIKELY( feat_zmm && !feat_ymm ) ) FD_LOG_ERR(( "vCPU has zmm registers but no ymm registers (CPUID detection broken?)" ));
+  if( feat_fred ) FD_LOG_INFO(( "vCPU has FRED" ));
+  if( feat_apx  ) FD_LOG_INFO(( "vCPU has APX"  ));
 }

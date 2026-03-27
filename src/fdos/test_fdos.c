@@ -2,6 +2,7 @@
 #include "host/fdos_kvm.h"
 #include "../util/fd_util.h"
 
+#include <asm/kvm.h>
 #include <stddef.h>
 #include <errno.h>
 #include <stdio.h> /* stderr, fflush */
