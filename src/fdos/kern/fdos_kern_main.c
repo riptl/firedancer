@@ -10,9 +10,9 @@
 __attribute__((naked)) void
 fdos_syscall_handler( void ) {
   __asm__ volatile (
-      "cmp $231, %eax;\n"
-      "je longjmp;\n"
-      "ud2;\n"
+      "movabs $0xffffff80003ffff8UL, %rax\n"
+      "mov %rax, %rsp\n"
+      "jmp fdos_kern_step;\n"
   );
 }
 
@@ -39,47 +39,29 @@ fd_io_write( int          fd,
   return 0;
 }
 
-/* Context switching **************************************************/
-
-__attribute__((aligned(64))) ulong g_save[ 128 ];
-
-__attribute__((naked)) uint
-setjmp( void ) {
-  __asm__ volatile (
-      "movabsq $g_save, %rsi;\n"
-      "movq %rbx, (%rsi);\n"
-      "movq %rbp, 8(%rsi);\n"
-      "movq %r12, 16(%rsi);\n"
-      "movq %r13, 24(%rsi);\n"
-      "movq %r14, 32(%rsi);\n"
-      "movq %r15, 40(%rsi);\n"
-      "leaq 8(%rsp), %rdx;\n"
-      "movq %rdx, 48(%rsi);\n"
-      "movq (%rsp), %rdx;\n"
-      "movq %rdx, 56(%rsi);\n"
-      "xorl %eax, %eax;\n"
-      "retq;\n"
-  );
-}
-
-__attribute__((naked,noreturn)) void
-longjmp( void ) {
-  __asm__ volatile (
-      "movabsq $g_save, %rdi;\n"
-      "movq (%rdi), %rbx;\n"
-      "movq 8(%rdi), %rbp;\n"
-      "movq 16(%rdi), %r12;\n"
-      "movq 24(%rdi), %r13;\n"
-      "movq 32(%rdi), %r14;\n"
-      "movq 40(%rdi), %r15;\n"
-      "movq 48(%rdi), %rsp;\n"
-      "jmp *56(%rdi);\n"
-  );
-}
-
+__attribute__((noreturn))
 static void
 farcall_ring3( ulong stack_top_gvaddr,
                ulong func ) {
+  fdos_ring3_enter( stack_top_gvaddr, func );
+  __builtin_unreachable();
+}
+
+static long  bench_start;
+static ulong iter_rem = 1e7;
+static ulong ustack;
+static ulong uentry;
+
+__attribute__((noreturn))
+void
+fdos_kern_step( void ) {
+  if( FD_UNLIKELY( !iter_rem-- ) ) {
+    ulong iter = (ulong)1e8;
+    long dt = fd_log_wallclock() - bench_start;
+    FD_LOG_NOTICE(( "Context switching: %lu ns/iter", (ulong)( (double)dt/(double)iter ) ));
+    FD_LOG_ERR(( "Goodbye" ));
+  }
+
   fdos_vmm_alloc_t * alloc = &g_vmm_alloc;
   ulong * pml4 = (ulong *)alloc->haddr;
   ulong   next = alloc->next;
@@ -104,17 +86,9 @@ farcall_ring3( ulong stack_top_gvaddr,
   pml2[ 0 ] = pml1_gpaddr | FD_X86_PT_P | FD_X86_PT_RW | FD_X86_PT_US;
   pml1[ 1 ] = FDOS_GPADDR_SHMEM | FD_X86_PT_P | FD_X86_PT_RW | FD_X86_PT_US | FD_X86_PT_XD;
 
-  if( setjmp()==0 ) {
-    fdos_ring3_enter( stack_top_gvaddr, func );
-    __builtin_unreachable();
-  }
-
-  pml4[ 0 ] = 0UL;
-  pml3[ 0 ] = 0UL;
-  pml2[ 0 ] = 0UL;
-  pml1[ 1 ] = 0UL;
   ulong descriptor[ 2 ] = { 0UL, 0UL };
   _invpcid( 3, descriptor ); /* invalidate TLB except global pages */
+  farcall_ring3( ustack, uentry );
 }
 
 
@@ -128,21 +102,11 @@ fdos_kern_main( fdos_kern_args_t * args ) {
   fd_log_colorize_set( 1 );
 
   FD_LOG_NOTICE(( "Hello world!" ));
-  ulong const ustack = args->stack_user_top_gvaddr-8UL;
-  ulong const uentry = args->ring3_entry_gvaddr;
+  ustack = args->stack_user_top_gvaddr-8UL;
+  uentry = args->ring3_entry_gvaddr;
   FD_STORE( ulong, (void *)ustack, (ulong)fdos_ring3_exit );
 
-  farcall_ring3( ustack, uentry );
-  FD_LOG_NOTICE(( "Returned from ring 3" ));
-
+  bench_start = fd_log_wallclock();
   FD_LOG_NOTICE(( "Benchmarking" ));
-  long dt = -fd_log_wallclock();
-  ulong iter = (ulong)1e7;
-  for( ulong i=0UL; i<iter; i++ ) {
-    farcall_ring3( ustack, uentry );
-  }
-  dt += fd_log_wallclock(); (void)dt;
-  FD_LOG_NOTICE(( "Context switching: %lu ns/iter", (ulong)( (double)dt/(double)iter ) ));
-
-  FD_LOG_ERR(( "Goodbye" ));
+  fdos_kern_step();
 }
