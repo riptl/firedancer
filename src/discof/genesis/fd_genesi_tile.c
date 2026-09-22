@@ -560,6 +560,7 @@ rlimit_file_cnt( fd_topo_t const *      topo FD_PARAM_UNUSED,
          tile->genesi.entrypoints_cnt; /* for the client */
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -587,6 +588,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_fd_genesi_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 static ulong
 populate_allowed_fds( fd_topo_t const *      topo,
                       fd_topo_tile_t const * tile,
@@ -645,7 +647,9 @@ fd_topo_run_tile_t fd_tile_genesi = {
   .rlimit_file_cnt_fn       = rlimit_file_cnt,
   .allow_connect            = 1,
   .allow_renameat           = 1,
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .loose_footprint          = loose_footprint,
   .scratch_align            = scratch_align,

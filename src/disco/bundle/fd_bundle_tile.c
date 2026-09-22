@@ -624,6 +624,7 @@ unprivileged_init( fd_topo_t const *      topo,
       FD_MHIST_MAX( BUNDLE, MESSAGE_RX_DELAY_NANOS ) );
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -646,6 +647,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_fd_bundle_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 static ulong
 populate_allowed_fds( fd_topo_t const *      topo,
                       fd_topo_tile_t const * tile,
@@ -685,7 +687,9 @@ populate_allowed_fds( fd_topo_t const *      topo,
 
 fd_topo_run_tile_t fd_tile_bundle = {
   .name                     = "bundle",
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,

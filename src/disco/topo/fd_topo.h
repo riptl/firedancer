@@ -868,6 +868,8 @@ struct fd_topo {
 };
 typedef struct fd_topo fd_topo_t;
 
+struct sock_filter;
+
 typedef struct {
   char const * name;
 

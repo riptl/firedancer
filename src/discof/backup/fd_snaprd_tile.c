@@ -79,6 +79,7 @@ populate_allowed_fds( fd_topo_t const *      topo,
   return out_cnt;
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -89,6 +90,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_fd_snaprd_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 FD_FN_CONST static inline ulong
 scratch_align( void ) {
   return alignof(fd_snaprd_t);
@@ -328,7 +330,9 @@ metrics_write( fd_snaprd_t * ctx ) {
 fd_topo_run_tile_t fd_tile_snaprd = {
   .name                     = "snaprd",
   .populate_allowed_fds     = populate_allowed_fds,
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,
   .unprivileged_init        = unprivileged_init,

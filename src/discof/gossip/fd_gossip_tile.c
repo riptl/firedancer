@@ -665,6 +665,7 @@ unprivileged_init( fd_topo_t const *      topo,
     FD_LOG_ERR(( "scratch overflow %lu %lu %lu", scratch_top - (ulong)scratch - scratch_footprint( tile ), scratch_top, (ulong)scratch + scratch_footprint( tile ) ));
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -677,6 +678,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_fd_gossip_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 static ulong
 populate_allowed_fds( fd_topo_t const *      topo,
                       fd_topo_tile_t const * tile,
@@ -733,7 +735,9 @@ FD_STATIC_ASSERT( FD_PING_TRACKER_MAX+2UL*FD_GOSSIP_MESSAGE_MAX_CRDS>=FD_CONTACT
 
 fd_topo_run_tile_t fd_tile_gossip = {
   .name                     = "gossip",
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,

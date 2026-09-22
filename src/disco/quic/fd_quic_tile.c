@@ -628,6 +628,7 @@ unprivileged_init( fd_topo_t const *      topo,
                                                                     FD_MHIST_SECONDS_MAX( QUIC, RX_DURATION_SECONDS ) ) );
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -638,6 +639,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_quic_instr_cnt;
 }
 
+#endif /* __linux__ */
 static ulong
 populate_allowed_fds( fd_topo_t const *      topo,
                       fd_topo_tile_t const * tile,
@@ -673,7 +675,9 @@ populate_allowed_fds( fd_topo_t const *      topo,
 
 fd_topo_run_tile_t fd_tile_quic = {
   .name                     = "quic",
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,

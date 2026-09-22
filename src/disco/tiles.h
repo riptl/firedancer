@@ -10,8 +10,6 @@
 #include "bundle/fd_bundle_crank.h"
 #include "../disco/metrics/generated/fd_metrics_pack.h"
 
-#include <linux/filter.h>
-
 struct fd_became_leader {
    ulong slot;
 

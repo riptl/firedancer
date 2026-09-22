@@ -1508,6 +1508,7 @@ unprivileged_init( fd_topo_t const *      topo,
   }
 }
 
+#if defined(__linux__)
 FD_FN_UNUSED static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -1519,6 +1520,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_fd_mlx5_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 FD_FN_UNUSED static ulong
 populate_allowed_fds( fd_topo_t const *      topo,
                       fd_topo_tile_t const * tile,
@@ -1550,7 +1552,9 @@ populate_allowed_fds( fd_topo_t const *      topo,
 #ifndef FD_TILE_TEST
 fd_topo_run_tile_t fd_tile_mlx5 = {
   .name                     = "mlx5",
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,

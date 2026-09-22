@@ -49,21 +49,21 @@ fd_pcurve_ref_reduce_once( ulong *       r,
 
 #define FD_PCURVE_REF_DEFINE_POW( fn, n, mul, sqr, set_one )                       \
 static inline void                                                                 \
-fn( ulong       r[ n ],                                                            \
-    ulong const a[ n ],                                                            \
-    ulong const e[ n ] ) {                                                         \
-  ulong tbl[ 16 ][ n ];                                                            \
+fn( uint64_t       r[ n ],                                                         \
+    uint64_t const a[ n ],                                                         \
+    uint64_t const e[ n ] ) {                                                      \
+  uint64_t tbl[ 16 ][ n ];                                                         \
   set_one( tbl[ 0 ] );                                                             \
-  memcpy( tbl[ 1 ], a, sizeof(ulong)*(n) );                                        \
+  memcpy( tbl[ 1 ], a, sizeof(uint64_t)*(n) );                                     \
   for( ulong i=2UL; i<16UL; i++ ) mul( tbl[ i ], tbl[ i-1UL ], a );                \
-  ulong acc[ n ];                                                                  \
+  uint64_t acc[ n ];                                                               \
   set_one( acc );                                                                  \
   for( long i=(long)((n)*64UL)-4L; i>=0L; i-=4L ) {                                \
     sqr( acc, acc ); sqr( acc, acc ); sqr( acc, acc ); sqr( acc, acc );            \
     ulong d = ( e[ i/64L ] >> (i%64L) ) & 15UL;                                    \
     mul( acc, acc, tbl[ d ] );                                                     \
   }                                                                                \
-  memcpy( r, acc, sizeof(ulong)*(n) );                                             \
+  memcpy( r, acc, sizeof(uint64_t)*(n) );                                          \
 }
 
 #endif /* HEADER_fd_src_ballet_pcurves_fd_pcurve_ref_util_h */

@@ -100,12 +100,12 @@ fd_bn254_fp_neg_nm( fd_bn254_fp_t * r,
   }
   /* compute p-a */
   for( ulong i=0, cy=0; i<4; i++ ) {
-    ulong p = fd_bn254_const_p->limbs[i];
-    ulong b = a->limbs[i];
+    ulong p = fd_bn254_const_p->u64[i];
+    ulong b = a->u64[i];
     b += cy;
     cy = (b < cy);
     cy += (p < b);
-    r->limbs[i] = p - b;
+    r->u64[i] = p - b;
   }
   return r;
 }
@@ -113,10 +113,10 @@ fd_bn254_fp_neg_nm( fd_bn254_fp_t * r,
 static inline fd_bn254_fp_t *
 fd_bn254_fp_set( fd_bn254_fp_t * r,
                  fd_bn254_fp_t const * a ) {
-  r->limbs[0] = a->limbs[0];
-  r->limbs[1] = a->limbs[1];
-  r->limbs[2] = a->limbs[2];
-  r->limbs[3] = a->limbs[3];
+  r->u64[0] = a->u64[0];
+  r->u64[1] = a->u64[1];
+  r->u64[2] = a->u64[2];
+  r->u64[3] = a->u64[3];
   return r;
 }
 
@@ -132,23 +132,23 @@ fd_bn254_fp_add( fd_bn254_fp_t * r,
      + cmov strategy. */
   ulong t0,t1,t2,t3, s0,s1,s2,s3;
   int c = 0;
-  fd_ulong_add_carry( &t0, &c, a->limbs[0], b->limbs[0], c );
-  fd_ulong_add_carry( &t1, &c, a->limbs[1], b->limbs[1], c );
-  fd_ulong_add_carry( &t2, &c, a->limbs[2], b->limbs[2], c );
-  fd_ulong_add_carry( &t3, &c, a->limbs[3], b->limbs[3], c );
+  fd_ulong_add_carry( &t0, &c, a->u64[0], b->u64[0], c );
+  fd_ulong_add_carry( &t1, &c, a->u64[1], b->u64[1], c );
+  fd_ulong_add_carry( &t2, &c, a->u64[2], b->u64[2], c );
+  fd_ulong_add_carry( &t3, &c, a->u64[3], b->u64[3], c );
   int br = 0;
-  fd_ulong_sub_borrow( &s0, &br, t0, fd_bn254_const_p->limbs[0], br );
-  fd_ulong_sub_borrow( &s1, &br, t1, fd_bn254_const_p->limbs[1], br );
-  fd_ulong_sub_borrow( &s2, &br, t2, fd_bn254_const_p->limbs[2], br );
-  fd_ulong_sub_borrow( &s3, &br, t3, fd_bn254_const_p->limbs[3], br );
+  fd_ulong_sub_borrow( &s0, &br, t0, fd_bn254_const_p->u64[0], br );
+  fd_ulong_sub_borrow( &s1, &br, t1, fd_bn254_const_p->u64[1], br );
+  fd_ulong_sub_borrow( &s2, &br, t2, fd_bn254_const_p->u64[2], br );
+  fd_ulong_sub_borrow( &s3, &br, t3, fd_bn254_const_p->u64[3], br );
 
-  r->limbs[0] = br ? t0 : s0;
-  r->limbs[1] = br ? t1 : s1;
-  r->limbs[2] = br ? t2 : s2;
-  r->limbs[3] = br ? t3 : s3;
+  r->u64[0] = br ? t0 : s0;
+  r->u64[1] = br ? t1 : s1;
+  r->u64[2] = br ? t2 : s2;
+  r->u64[3] = br ? t3 : s3;
   return r;
 #else
-  fiat_bn254_add( r->limbs, a->limbs, b->limbs );
+  fiat_bn254_add( r->u64, a->u64, b->u64 );
   return r;
 #endif
 }
@@ -162,10 +162,10 @@ fd_bn254_fp_add_lazy( fd_bn254_fp_t * r,
                       fd_bn254_fp_t const * b ) {
 #if FD_HAS_X86
   int c = 0;
-  fd_ulong_add_carry( &r->limbs[0], &c, a->limbs[0], b->limbs[0], c );
-  fd_ulong_add_carry( &r->limbs[1], &c, a->limbs[1], b->limbs[1], c );
-  fd_ulong_add_carry( &r->limbs[2], &c, a->limbs[2], b->limbs[2], c );
-  fd_ulong_add_carry( &r->limbs[3], &c, a->limbs[3], b->limbs[3], c );
+  fd_ulong_add_carry( &r->u64[0], &c, a->u64[0], b->u64[0], c );
+  fd_ulong_add_carry( &r->u64[1], &c, a->u64[1], b->u64[1], c );
+  fd_ulong_add_carry( &r->u64[2], &c, a->u64[2], b->u64[2], c );
+  fd_ulong_add_carry( &r->u64[3], &c, a->u64[3], b->u64[3], c );
   (void)c; /* p < 2^254 so c is always 0 for a, b < 2p */
   return r;
 #else
@@ -182,24 +182,24 @@ fd_bn254_fp_sub( fd_bn254_fp_t * r,
 #if FD_HAS_X86 && defined(__ADX__)
   ulong t0,t1,t2,t3;
   int br = 0;
-  fd_ulong_sub_borrow( &t0, &br, a->limbs[0], b->limbs[0], br );
-  fd_ulong_sub_borrow( &t1, &br, a->limbs[1], b->limbs[1], br );
-  fd_ulong_sub_borrow( &t2, &br, a->limbs[2], b->limbs[2], br );
-  fd_ulong_sub_borrow( &t3, &br, a->limbs[3], b->limbs[3], br );
+  fd_ulong_sub_borrow( &t0, &br, a->u64[0], b->u64[0], br );
+  fd_ulong_sub_borrow( &t1, &br, a->u64[1], b->u64[1], br );
+  fd_ulong_sub_borrow( &t2, &br, a->u64[2], b->u64[2], br );
+  fd_ulong_sub_borrow( &t3, &br, a->u64[3], b->u64[3], br );
   ulong mask = (ulong)0 - (ulong)br; /* all-ones if borrow */
   int c = 0;
-  fd_ulong_add_carry( &t0, &c, t0, mask & fd_bn254_const_p->limbs[0], c );
-  fd_ulong_add_carry( &t1, &c, t1, mask & fd_bn254_const_p->limbs[1], c );
-  fd_ulong_add_carry( &t2, &c, t2, mask & fd_bn254_const_p->limbs[2], c );
-  fd_ulong_add_carry( &t3, &c, t3, mask & fd_bn254_const_p->limbs[3], c );
+  fd_ulong_add_carry( &t0, &c, t0, mask & fd_bn254_const_p->u64[0], c );
+  fd_ulong_add_carry( &t1, &c, t1, mask & fd_bn254_const_p->u64[1], c );
+  fd_ulong_add_carry( &t2, &c, t2, mask & fd_bn254_const_p->u64[2], c );
+  fd_ulong_add_carry( &t3, &c, t3, mask & fd_bn254_const_p->u64[3], c );
 
-  r->limbs[0] = t0; 
-  r->limbs[1] = t1; 
-  r->limbs[2] = t2; 
-  r->limbs[3] = t3;
+  r->u64[0] = t0; 
+  r->u64[1] = t1; 
+  r->u64[2] = t2; 
+  r->u64[3] = t3;
   return r;
 #else
-  fiat_bn254_sub( r->limbs, a->limbs, b->limbs );
+  fiat_bn254_sub( r->u64, a->u64, b->u64 );
   return r;
 #endif
 }
@@ -207,19 +207,19 @@ fd_bn254_fp_sub( fd_bn254_fp_t * r,
 INLINE fd_bn254_fp_t *
 fd_bn254_fp_neg( fd_bn254_fp_t * r,
                  fd_bn254_fp_t const * a ) {
-  fiat_bn254_opp( r->limbs, a->limbs );
+  fiat_bn254_opp( r->u64, a->u64 );
   return r;
 }
 
 static inline fd_bn254_fp_t *
 fd_bn254_fp_halve( fd_bn254_fp_t * r,
                    fd_bn254_fp_t const * a ) {
-  int is_odd = a->limbs[0] & 0x1;
+  int is_odd = a->u64[0] & 0x1;
   fd_uint256_add( r, a, is_odd ? fd_bn254_const_p : fd_bn254_const_zero );
-  r->limbs[0] = (r->limbs[0] >> 1) | (r->limbs[1] << 63);
-  r->limbs[1] = (r->limbs[1] >> 1) | (r->limbs[2] << 63);
-  r->limbs[2] = (r->limbs[2] >> 1) | (r->limbs[3] << 63);
-  r->limbs[3] = (r->limbs[3] >> 1);
+  r->u64[0] = (r->u64[0] >> 1) | (r->u64[1] << 63);
+  r->u64[1] = (r->u64[1] >> 1) | (r->u64[2] << 63);
+  r->u64[2] = (r->u64[2] >> 1) | (r->u64[3] << 63);
+  r->u64[3] = (r->u64[3] >> 1);
   return r;
 }
 
@@ -260,14 +260,14 @@ fd_bn254_fp_inv( fd_bn254_fp_t * r,
       r = a^{-1} * R^{-1} * R * R = a^{-1} * R = (a^{-1})' */
   ulong tmp[12];
   fd_bn254_fp_t z[1];
-  bignum_modinv( 4, z->limbs, a->limbs, fd_bn254_const_p->limbs, tmp );
+  bignum_modinv( 4, z->u64, a->u64, fd_bn254_const_p->u64, tmp );
   fd_bn254_fp_to_mont( r, z );
   fd_bn254_fp_to_mont( r, r );
   return r;
 #else
   fd_uint256_t p_minus_2[1];
   fd_bn254_fp_set( p_minus_2, fd_bn254_const_p );
-  p_minus_2->limbs[0] -= 2UL;
+  p_minus_2->u64[0] -= 2UL;
   return fd_bn254_fp_pow( r, a, p_minus_2 );
 #endif
 }

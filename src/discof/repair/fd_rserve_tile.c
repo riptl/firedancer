@@ -712,6 +712,7 @@ unprivileged_init( fd_topo_t      const * topo,
   if( FD_UNLIKELY( ctx->net_out_idx==UINT_MAX ) ) FD_LOG_ERR(( "Missing rserve_net output link" ));
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo FD_PARAM_UNUSED,
                           fd_topo_tile_t const * tile FD_PARAM_UNUSED,
@@ -724,6 +725,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo FD_PARAM_UNUSED,
   return sock_filter_policy_fd_rserve_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 static ulong
 populate_allowed_fds( fd_topo_t const *      topo FD_PARAM_UNUSED,
                       fd_topo_tile_t const * tile FD_PARAM_UNUSED,
@@ -760,7 +762,9 @@ populate_allowed_fds( fd_topo_t const *      topo FD_PARAM_UNUSED,
 
 fd_topo_run_tile_t fd_tile_rserve = {
   .name                     = "rserve",
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,

@@ -78,6 +78,7 @@ scratch_footprint( fd_topo_tile_t const * tile ) {
   return FD_LAYOUT_FINI( l, scratch_align() );
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -92,6 +93,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_netlink_instr_cnt;
 }
 
+#endif /* __linux__ */
 static ulong
 populate_allowed_fds( fd_topo_t const *      topo,
                       fd_topo_tile_t const * tile,
@@ -608,7 +610,9 @@ after_frag( fd_netlink_tile_ctx_t * ctx,
 
 fd_topo_run_tile_t fd_tile_netlnk = {
   .name                     = "netlnk",
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,

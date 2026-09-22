@@ -66,7 +66,7 @@ fd_secp256k1_scalar_frombytes( fd_secp256k1_scalar_t * r,
 static inline fd_secp256k1_scalar_t *
 fd_secp256k1_scalar_reduce( fd_secp256k1_scalar_t *       r,
                             fd_secp256k1_scalar_t const * a ) {
-  fd_pcurve_ref_reduce_once( r->limbs, a->limbs, fd_secp256k1_const_n->limbs, 4UL );
+  fd_pcurve_ref_reduce_once( r->u64, a->u64, fd_secp256k1_const_n->u64, 4UL );
   return r;
 }
 
@@ -77,9 +77,9 @@ static inline fd_secp256k1_scalar_t *
 fd_secp256k1_scalar_invert( fd_secp256k1_scalar_t *       r,
                             fd_secp256k1_scalar_t const * a ) {
   ulong t[ 4 ];
-  fiat_secp256k1_montgomery_scalar_to_montgomery( t, a->limbs );
+  fiat_secp256k1_montgomery_scalar_to_montgomery( t, a->u64 );
   fd_secp256k1_scalar_pow_limbs( t, t, fd_secp256k1_const_n_m2 );
-  fiat_secp256k1_montgomery_scalar_from_montgomery( r->limbs, t );
+  fiat_secp256k1_montgomery_scalar_from_montgomery( r->u64, t );
   return r;
 }
 
@@ -88,7 +88,7 @@ static inline fd_secp256k1_scalar_t *
 fd_secp256k1_scalar_mul( fd_secp256k1_scalar_t *       restrict r,
                          fd_secp256k1_scalar_t const * restrict a,
                          fd_secp256k1_scalar_t const * restrict b ) {
-  fiat_secp256k1_montgomery_scalar_mul( r->limbs, a->limbs, b->limbs );
+  fiat_secp256k1_montgomery_scalar_mul( r->u64, a->u64, b->u64 );
   return r;
 }
 
@@ -97,21 +97,21 @@ fd_secp256k1_scalar_mul( fd_secp256k1_scalar_t *       restrict r,
 static inline fd_secp256k1_scalar_t *
 fd_secp256k1_scalar_negate( fd_secp256k1_scalar_t *       r,
                             fd_secp256k1_scalar_t const * a ) {
-  fiat_secp256k1_montgomery_scalar_opp( r->limbs, a->limbs );
+  fiat_secp256k1_montgomery_scalar_opp( r->u64, a->u64 );
   return r;
 }
 
 static inline fd_secp256k1_scalar_t *
 fd_secp256k1_scalar_tomont( fd_secp256k1_scalar_t *       r,
                             fd_secp256k1_scalar_t const * a ) {
-  fiat_secp256k1_montgomery_scalar_to_montgomery( r->limbs, a->limbs );
+  fiat_secp256k1_montgomery_scalar_to_montgomery( r->u64, a->u64 );
   return r;
 }
 
 static inline fd_secp256k1_scalar_t *
 fd_secp256k1_scalar_demont( fd_secp256k1_scalar_t *       r,
                             fd_secp256k1_scalar_t const * a ) {
-  fiat_secp256k1_montgomery_scalar_from_montgomery( r->limbs, a->limbs );
+  fiat_secp256k1_montgomery_scalar_from_montgomery( r->u64, a->u64 );
   return r;
 }
 
@@ -120,10 +120,10 @@ fd_secp256k1_scalar_demont( fd_secp256k1_scalar_t *       r,
 static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_set( fd_secp256k1_fp_t *       r,
                      fd_secp256k1_fp_t const * a ) {
-  r->limbs[ 0 ] = a->limbs[ 0 ];
-  r->limbs[ 1 ] = a->limbs[ 1 ];
-  r->limbs[ 2 ] = a->limbs[ 2 ];
-  r->limbs[ 3 ] = a->limbs[ 3 ];
+  r->u64[ 0 ] = a->u64[ 0 ];
+  r->u64[ 1 ] = a->u64[ 1 ];
+  r->u64[ 2 ] = a->u64[ 2 ];
+  r->u64[ 3 ] = a->u64[ 3 ];
   return r;
 }
 
@@ -139,7 +139,7 @@ static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_add( fd_secp256k1_fp_t *       r,
                      fd_secp256k1_fp_t const * a,
                      fd_secp256k1_fp_t const * b ) {
-  fiat_secp256k1_montgomery_add( r->limbs, a->limbs, b->limbs );
+  fiat_secp256k1_montgomery_add( r->u64, a->u64, b->u64 );
   return r;
 }
 
@@ -148,7 +148,7 @@ static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_sub( fd_secp256k1_fp_t *       r,
                      fd_secp256k1_fp_t const * a,
                      fd_secp256k1_fp_t const * b ) {
-  fiat_secp256k1_montgomery_sub( r->limbs, a->limbs, b->limbs );
+  fiat_secp256k1_montgomery_sub( r->u64, a->u64, b->u64 );
   return r;
 }
 
@@ -156,7 +156,7 @@ fd_secp256k1_fp_sub( fd_secp256k1_fp_t *       r,
 static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_dbl( fd_secp256k1_fp_t *       r,
                      fd_secp256k1_fp_t const * a ) {
-  fiat_secp256k1_montgomery_add( r->limbs, a->limbs, a->limbs );
+  fiat_secp256k1_montgomery_add( r->u64, a->u64, a->u64 );
   return r;
 }
 
@@ -165,8 +165,8 @@ static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_triple( fd_secp256k1_fp_t *       r,
                         fd_secp256k1_fp_t const * a ) {
   ulong t[ 4 ];
-  fiat_secp256k1_montgomery_add( t, a->limbs, a->limbs );
-  fiat_secp256k1_montgomery_add( r->limbs, t, a->limbs );
+  fiat_secp256k1_montgomery_add( t, a->u64, a->u64 );
+  fiat_secp256k1_montgomery_add( r->u64, t, a->u64 );
   return r;
 }
 
@@ -175,7 +175,7 @@ static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_mul( fd_secp256k1_fp_t *       r,
                      fd_secp256k1_fp_t const * a,
                      fd_secp256k1_fp_t const * b ) {
-  fiat_secp256k1_montgomery_mul( r->limbs, a->limbs, b->limbs );
+  fiat_secp256k1_montgomery_mul( r->u64, a->u64, b->u64 );
   return r;
 }
 
@@ -183,7 +183,7 @@ fd_secp256k1_fp_mul( fd_secp256k1_fp_t *       r,
 static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_sqr( fd_secp256k1_fp_t *       r,
                      fd_secp256k1_fp_t const * a ) {
-  fiat_secp256k1_montgomery_square( r->limbs, a->limbs );
+  fiat_secp256k1_montgomery_square( r->u64, a->u64 );
   return r;
 }
 
@@ -191,14 +191,14 @@ fd_secp256k1_fp_sqr( fd_secp256k1_fp_t *       r,
 static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_negate( fd_secp256k1_fp_t *       r,
                         fd_secp256k1_fp_t const * a ) {
-  fiat_secp256k1_montgomery_opp( r->limbs, a->limbs );
+  fiat_secp256k1_montgomery_opp( r->u64, a->u64 );
   return r;
 }
 
 static inline int
 fd_secp256k1_fp_is_odd( fd_secp256k1_fp_t const *r ) {
   ulong scratch[ 4 ];
-  fiat_secp256k1_montgomery_from_montgomery( scratch, r->limbs );
+  fiat_secp256k1_montgomery_from_montgomery( scratch, r->u64 );
   return scratch[ 0 ] & 1;
 }
 
@@ -207,7 +207,7 @@ fd_secp256k1_fp_is_odd( fd_secp256k1_fp_t const *r ) {
 static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_invert( fd_secp256k1_fp_t *       r,
                         fd_secp256k1_fp_t const * a ) {
-  fd_secp256k1_fp_pow_limbs( r->limbs, a->limbs, fd_secp256k1_const_p_m2 );
+  fd_secp256k1_fp_pow_limbs( r->u64, a->u64, fd_secp256k1_const_p_m2 );
   return r;
 }
 
@@ -215,7 +215,7 @@ fd_secp256k1_fp_invert( fd_secp256k1_fp_t *       r,
 static inline fd_secp256k1_fp_t *
 fd_secp256k1_fp_tomont( fd_secp256k1_fp_t *       r,
                         fd_secp256k1_fp_t const * a ) {
-  fiat_secp256k1_montgomery_to_montgomery( r->limbs, a->limbs );
+  fiat_secp256k1_montgomery_to_montgomery( r->u64, a->u64 );
   return r;
 }
 
@@ -223,7 +223,7 @@ static inline uchar *
 fd_secp256k1_fp_tobytes( uchar                    r[ 32 ],
                          fd_secp256k1_fp_t const *a ) {
   fd_secp256k1_fp_t swapped[1];
-  fiat_secp256k1_montgomery_from_montgomery( swapped->limbs, a->limbs );
+  fiat_secp256k1_montgomery_from_montgomery( swapped->u64, a->u64 );
   fd_uint256_bswap( swapped, swapped );
   memcpy( r, swapped->buf, 32 );
   return r;

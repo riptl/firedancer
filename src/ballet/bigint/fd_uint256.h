@@ -4,6 +4,7 @@
 /* Implementation of uint256. */
 
 #include "../fd_ballet_base.h"
+#include <stdint.h>
 
 /* Align at most at 32 bytes.
    This way a struct containing multiple fd_uint256_t doesn't waste space
@@ -21,8 +22,9 @@
 /* fd_uint256_t represents a uint256 as a buffer of 32 bytes,
    or equivalently (on little endian platforms) an array of 4 ulong. */
 union FD_UINT256_ALIGNED fd_uint256 {
-  ulong limbs[4];
-  uchar buf[32];
+  ulong    limbs[4];
+  uint64_t u64[4];
+  uchar    buf[32];
 };
 typedef union fd_uint256 fd_uint256_t;
 

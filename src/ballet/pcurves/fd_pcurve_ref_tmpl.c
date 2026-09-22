@@ -52,13 +52,13 @@
 
 /* fiat-crypto wrappers operating on fd types */
 
-#define FP_MUL(r,a,b)  PCURVE_REF_FIAT_FP(mul)            ( (r)->limbs, (a)->limbs, (b)->limbs )
-#define FP_SQR(r,a)    PCURVE_REF_FIAT_FP(square)         ( (r)->limbs, (a)->limbs )
-#define FP_ADD(r,a,b)  PCURVE_REF_FIAT_FP(add)            ( (r)->limbs, (a)->limbs, (b)->limbs )
-#define FP_SUB(r,a,b)  PCURVE_REF_FIAT_FP(sub)            ( (r)->limbs, (a)->limbs, (b)->limbs )
-#define FP_OPP(r,a)    PCURVE_REF_FIAT_FP(opp)            ( (r)->limbs, (a)->limbs )
-#define FP_TOMONT(r,a) PCURVE_REF_FIAT_FP(to_montgomery)  ( (r)->limbs, (a)->limbs )
-#define FP_DEMONT(r,a) PCURVE_REF_FIAT_FP(from_montgomery)( (r)->limbs, (a)->limbs )
+#define FP_MUL(r,a,b)  PCURVE_REF_FIAT_FP(mul)            ( (r)->u64, (a)->u64, (b)->u64 )
+#define FP_SQR(r,a)    PCURVE_REF_FIAT_FP(square)         ( (r)->u64, (a)->u64 )
+#define FP_ADD(r,a,b)  PCURVE_REF_FIAT_FP(add)            ( (r)->u64, (a)->u64, (b)->u64 )
+#define FP_SUB(r,a,b)  PCURVE_REF_FIAT_FP(sub)            ( (r)->u64, (a)->u64, (b)->u64 )
+#define FP_OPP(r,a)    PCURVE_REF_FIAT_FP(opp)            ( (r)->u64, (a)->u64 )
+#define FP_TOMONT(r,a) PCURVE_REF_FIAT_FP(to_montgomery)  ( (r)->u64, (a)->u64 )
+#define FP_DEMONT(r,a) PCURVE_REF_FIAT_FP(from_montgomery)( (r)->u64, (a)->u64 )
 
 FD_PCURVE_REF_DEFINE_POW( REF_(fp_pow_limbs), PCURVE_REF_LIMBS,
                           PCURVE_REF_FIAT_FP(mul), PCURVE_REF_FIAT_FP(square), PCURVE_REF_FIAT_FP(set_one) )
@@ -97,7 +97,7 @@ REF_(scalar_from_digest)( SC_T *      r,
                           uchar const in[ SZ ] ) {
   memcpy( r->buf, in, SZ );
   UINT_(bswap)( r, r );
-  fd_pcurve_ref_reduce_once( r->limbs, r->limbs, REF_(const_n)->limbs, N );
+  fd_pcurve_ref_reduce_once( r->u64, r->u64, REF_(const_n)->u64, N );
 }
 
 /* r = a*b mod n, all plain (non Montgomery) residues.
@@ -107,8 +107,8 @@ REF_(scalar_mul)( SC_T *       r,
                   SC_T const * a,
                   SC_T const * b ) {
   ulong t[ N ];
-  PCURVE_REF_FIAT_SC(mul)( t, a->limbs, b->limbs );
-  PCURVE_REF_FIAT_SC(to_montgomery)( r->limbs, t );
+  PCURVE_REF_FIAT_SC(mul)( t, a->u64, b->u64 );
+  PCURVE_REF_FIAT_SC(to_montgomery)( r->u64, t );
   return r;
 }
 
@@ -117,9 +117,9 @@ static inline SC_T *
 REF_(scalar_inv)( SC_T *       r,
                   SC_T const * a ) {
   ulong t[ N ];
-  PCURVE_REF_FIAT_SC(to_montgomery)( t, a->limbs );
+  PCURVE_REF_FIAT_SC(to_montgomery)( t, a->u64 );
   REF_(scalar_pow_limbs)( t, t, REF_(const_n_m2) );
-  PCURVE_REF_FIAT_SC(from_montgomery)( r->limbs, t );
+  PCURVE_REF_FIAT_SC(from_montgomery)( r->u64, t );
   return r;
 }
 
@@ -128,7 +128,7 @@ REF_(scalar_inv)( SC_T *       r,
 static inline FP_T *
 REF_(fp_set)( FP_T *       r,
               FP_T const * a ) {
-  memcpy( r->limbs, a->limbs, SZ );
+  memcpy( r->u64, a->u64, SZ );
   return r;
 }
 
@@ -162,7 +162,7 @@ static inline FP_T *
 REF_(fp_sqrt)( FP_T *       r,
                FP_T const * a ) {
   FP_T t0[1], t1[1];
-  REF_(fp_pow_limbs)( t0->limbs, a->limbs, REF_(const_p_p1_div4) );
+  REF_(fp_pow_limbs)( t0->u64, a->u64, REF_(const_p_p1_div4) );
   FP_SQR( t1, t0 );
   if( FD_UNLIKELY( !REF_(fp_eq)( t1, a ) ) ) return NULL;
   return REF_(fp_set)( r, t0 );
@@ -354,7 +354,7 @@ REF_(point_frombytes)( PT_T *      r,
 
   /* choose y or -y */
   FP_DEMONT( demont_y, r->y );
-  if( ( demont_y->limbs[0] & 1UL ) != (ulong)( sgn==3U ) ) FP_OPP( r->y, r->y );
+  if( ( demont_y->u64[0] & 1UL ) != (ulong)( sgn==3U ) ) FP_OPP( r->y, r->y );
 
   REF_(fp_set)( r->z, REF_(const_one_mont) );
   return r;
@@ -371,11 +371,11 @@ REF_(point_eq_x)( PT_T const * p,
 
   /* x = demont(X / Z^2) mod n.  demont(X/Z^2) < p < 2n so one
      conditional subtraction reduces. */
-  REF_(fp_pow_limbs)( x->limbs, p->z->limbs, REF_(const_p_m2) );
+  REF_(fp_pow_limbs)( x->u64, p->z->u64, REF_(const_p_m2) );
   FP_SQR( x, x );
   FP_MUL( x, x, p->x );
   FP_DEMONT( x, x );
-  fd_pcurve_ref_reduce_once( x->limbs, x->limbs, REF_(const_n)->limbs, N );
+  fd_pcurve_ref_reduce_once( x->u64, x->u64, REF_(const_n)->limbs, N );
 
   if( FD_LIKELY( UINT_(eq)( r, x ) ) ) return PCURVE_REF_SUCCESS;
   return PCURVE_REF_FAILURE;
@@ -389,8 +389,8 @@ static inline int
 REF_(point_eq_mixed)( PT_T const * a,
                       ulong const  b[ 2*N ] ) {
   FP_T x[1], y[1];
-  memcpy( x->limbs, b,   SZ );
-  memcpy( y->limbs, b+N, SZ );
+  memcpy( x->u64, b,   SZ );
+  memcpy( y->u64, b+N, SZ );
   int is_zero = REF_(fp_eq)( x, REF_(const_zero) ) & REF_(fp_eq)( y, REF_(const_zero) );
 
   if( FD_UNLIKELY( REF_(point_is_inf)( a ) ) ) return is_zero;
@@ -410,8 +410,8 @@ REF_(point_add_mixed)( PT_T *       r,
                        PT_T const * a,
                        ulong const  b[ 2*N ] ) {
   PT_T bp[1];
-  memcpy( bp->x->limbs, b,   SZ );
-  memcpy( bp->y->limbs, b+N, SZ );
+  memcpy( bp->x->u64, b,   SZ );
+  memcpy( bp->y->u64, b+N, SZ );
   int is_zero = REF_(fp_eq)( bp->x, REF_(const_zero) ) & REF_(fp_eq)( bp->y, REF_(const_zero) );
   if( FD_UNLIKELY( is_zero ) ) { REF_(point_set)( r, a ); return; }
   REF_(fp_set)( bp->z, REF_(const_one_mont) );
@@ -425,9 +425,9 @@ REF_(double_scalar_mul_base)( PT_T *       r,
                               PT_T const * a,
                               SC_T const * u2 ) {
   PT_T g[1], t1[1], t2[1];
-  memcpy( g->x->limbs, REF_(const_g_mont),     SZ );
-  memcpy( g->y->limbs, REF_(const_g_mont)+N,   SZ );
-  memcpy( g->z->limbs, REF_(const_g_mont)+2*N, SZ );
+  memcpy( g->x->u64, REF_(const_g_mont),     SZ );
+  memcpy( g->y->u64, REF_(const_g_mont)+N,   SZ );
+  memcpy( g->z->u64, REF_(const_g_mont)+2*N, SZ );
 
   REF_(point_scalarmul)( t1, u1->limbs, g );
   REF_(point_scalarmul)( t2, u2->limbs, a );

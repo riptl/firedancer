@@ -1763,6 +1763,7 @@ populate_allowed_fds( fd_topo_t      const * topo FD_PARAM_UNUSED,
   return out_cnt;
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t const *      topo,
                           fd_topo_tile_t const * tile,
@@ -1773,6 +1774,7 @@ populate_allowed_seccomp( fd_topo_t const *      topo,
   return sock_filter_policy_fd_snapin_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 static void
 privileged_init( fd_topo_t const *      topo,
                  fd_topo_tile_t const * tile ) {
@@ -1926,7 +1928,9 @@ max_event_sz( fd_topo_tile_t const * tile FD_PARAM_UNUSED ) {
 fd_topo_run_tile_t fd_tile_snapin = {
   .name                     = NAME,
   .populate_allowed_fds     = populate_allowed_fds,
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,
   .privileged_init          = privileged_init,

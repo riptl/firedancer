@@ -855,6 +855,7 @@ unprivileged_init( fd_topo_t const *      topo,
     FD_LOG_ERR(( "scratch overflow %lu %lu %lu", scratch_top - (ulong)scratch - scratch_footprint( tile ), scratch_top, (ulong)scratch + scratch_footprint( tile ) ));
 }
 
+#if defined(__linux__)
 static ulong
 populate_allowed_seccomp( fd_topo_t      const * topo FD_PARAM_UNUSED,
                           fd_topo_tile_t const * tile FD_PARAM_UNUSED,
@@ -865,6 +866,7 @@ populate_allowed_seccomp( fd_topo_t      const * topo FD_PARAM_UNUSED,
   return sock_filter_policy_fd_txsend_tile_instr_cnt;
 }
 
+#endif /* __linux__ */
 static ulong
 populate_allowed_fds( fd_topo_t      const * topo FD_PARAM_UNUSED,
                       fd_topo_tile_t const * tile FD_PARAM_UNUSED,
@@ -902,7 +904,9 @@ max_event_sz( fd_topo_tile_t const * tile FD_PARAM_UNUSED ) {
 fd_topo_run_tile_t fd_tile_txsend = {
   .name                     = "txsend",
   .max_event_sz             = max_event_sz,
+#if defined(__linux__)
   .populate_allowed_seccomp = populate_allowed_seccomp,
+#endif
   .populate_allowed_fds     = populate_allowed_fds,
   .scratch_align            = scratch_align,
   .scratch_footprint        = scratch_footprint,

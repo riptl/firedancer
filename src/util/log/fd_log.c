@@ -1168,7 +1168,9 @@ fd_log_private_boot( int  *   pargc,
     fd_log_private_sig_trap( SIGUSR1   );
     fd_log_private_sig_trap( SIGUSR2   );
     fd_log_private_sig_trap( SIGBUS    );
+#ifdef SIGPOLL
     fd_log_private_sig_trap( SIGPOLL   );
+#endif
     fd_log_private_sig_trap( SIGPROF   );
     fd_log_private_sig_trap( SIGSYS    );
     fd_log_private_sig_trap( SIGTRAP   );
@@ -1286,7 +1288,9 @@ fd_log_private_boot_custom( ulong        app_id,
     fd_log_private_sig_trap( SIGUSR1   );
     fd_log_private_sig_trap( SIGUSR2   );
     fd_log_private_sig_trap( SIGBUS    );
+#ifdef SIGPOLL
     fd_log_private_sig_trap( SIGPOLL   );
+#endif
     fd_log_private_sig_trap( SIGPROF   );
     fd_log_private_sig_trap( SIGSYS    );
     fd_log_private_sig_trap( SIGTRAP   );

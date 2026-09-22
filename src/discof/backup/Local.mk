@@ -1,10 +1,10 @@
-$(call add-objs,fd_snap_pool,fd_discof)
 $(call add-objs,fd_ssmanifest_writer fd_txncache_writer,fd_discof)
 
 ifdef FD_HAS_ATOMIC
-$(call add-objs,fd_snapmk_tile fd_snapzp_tile fd_snaprd_tile,fd_discof)
 $(call add-objs,fd_backup_cache,fd_discof)
 ifdef FD_HAS_LINUX
+$(call add-objs,fd_snapmk_tile fd_snapzp_tile fd_snaprd_tile,fd_discof)
+$(call add-objs,fd_snap_pool,fd_discof)
 $(call add-objs,fd_snapsv_tile,fd_discof)
 $(call make-unit-test,test_snapsv,test_snapsv,fd_discof fd_disco fd_waltz fd_tango fd_ballet fd_util)
 $(call run-unit-test,test_snapsv)
